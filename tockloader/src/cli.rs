@@ -24,7 +24,9 @@ fn get_subcommands() -> Vec<Command> {
         .about("Open a terminal to receive UART data")
         .args(get_app_args())
         .args(get_channel_args())
-        .arg_required_else_help(false)]
+        .arg_required_else_help(false),
+        Command::new("list")
+            .about("List and inspect probes"),]
 }
 
 /// Generate all of the [arguments](clap::Arg) that are required by subcommands which work with apps.
