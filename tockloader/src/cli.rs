@@ -20,13 +20,14 @@ pub fn make_cli() -> Command {
 
 /// Generate all of the [subcommands](clap::Command) used by the program.
 fn get_subcommands() -> Vec<Command> {
-    vec![Command::new("listen")
-        .about("Open a terminal to receive UART data")
-        .args(get_app_args())
-        .args(get_channel_args())
-        .arg_required_else_help(false),
-        Command::new("list")
-            .about("List and inspect probes"),]
+    vec![
+        Command::new("listen")
+            .about("Open a terminal to receive UART data")
+            .args(get_app_args())
+            .args(get_channel_args())
+            .arg_required_else_help(false),
+        Command::new("list").about("List and inspect probes"),
+    ]
 }
 
 /// Generate all of the [arguments](clap::Arg) that are required by subcommands which work with apps.
