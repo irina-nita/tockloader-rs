@@ -12,6 +12,7 @@ impl BoardSettings {
                 chip,
                 start_address: 0x0004_0000,
             },
+            // TODO(MicuAna): inform the user we assumed we have the default settings if board is not found
             _ => BoardSettings {
                 board,
                 chip,
