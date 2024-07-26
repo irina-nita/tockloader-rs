@@ -2,25 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
+mod board_settings;
 mod cli;
 mod errors;
 mod interfaces;
-mod board_settings;
 
+use board_settings::BoardSettings;
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
-use board_settings::BoardSettings;
 
+use glob::glob;
+use inquire::Select;
 use interfaces::{build_interface, traits::*};
 use probe_rs::probe::list::Lister;
 use probe_rs::{MemoryInterface, Permissions};
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
-use tokio::time::sleep;
-use glob::glob;
-use inquire::Select;
 use tock_process_console;
+use tokio::time::sleep;
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -50,9 +50,7 @@ async fn run() -> Result<(), TockloaderError> {
         Some(("list", sub_matches)) => {
             list_probes(sub_matches).await?;
         }
-        Some(("install", sub_matches)) => {
-            
-        }
+        Some(("install", sub_matches)) => {}
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
         _ => {
@@ -74,7 +72,7 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     match ans {
         Ok(choice) => {
             let probe = choice.open().unwrap();
-    
+
             let chip = sub_matches.get_one::<String>("chip").unwrap();
             let board = sub_matches.get_one::<String>("board").unwrap();
 
@@ -140,7 +138,10 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
                         );
                     }
                     // TODO(MicuAna): refactor when reworking errors
-                    Err(TbfParseError::ChecksumMismatch(provided_checksum, calculated_checksum)) => {
+                    Err(TbfParseError::ChecksumMismatch(
+                        provided_checksum,
+                        calculated_checksum,
+                    )) => {
                         println!(
                             "Checksum mismatch: provided = {}, calculated = {}",
                             provided_checksum, calculated_checksum
@@ -155,7 +156,7 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
                 address += whole_len as u64;
             }
         }
-        Err(err) => println!("{}", err)
+        Err(err) => println!("{}", err),
     }
 
     Ok(())
