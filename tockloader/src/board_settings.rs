@@ -7,10 +7,7 @@ pub struct BoardSettings {
 }
 
 impl BoardSettings {
-    pub fn new(
-        board: String,
-        chip: String,
-    ) -> Self {
+    pub fn new(board: String, chip: String) -> Self {
         match board.as_str() {
             "microbit_v2" => BoardSettings {
                 board,
