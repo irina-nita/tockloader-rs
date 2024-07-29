@@ -4,4 +4,8 @@
 
 /target
 /Cargo.lock
+<<<<<<< HEAD
 /.vscode
+=======
+/.vscode
+>>>>>>> 7e0e242 (info basic setup)
