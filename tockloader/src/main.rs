@@ -14,13 +14,13 @@ use errors::TockloaderError;
 
 use glob::glob;
 use inquire::Select;
-use interfaces::{build_interface, traits::*};
 use probe_rs::probe::list::Lister;
 use probe_rs::{MemoryInterface, Permissions};
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
 use tock_process_console;
-use tokio::time::sleep;
+use tokio::time::{Duration, sleep};
+use tokio_serial::{SerialPort, SerialStream, Parity, StopBits, FlowControl};
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -50,7 +50,9 @@ async fn run() -> Result<(), TockloaderError> {
         Some(("list", sub_matches)) => {
             list_probes(sub_matches).await?;
         }
-        Some(("install", sub_matches)) => {}
+        Some(("install", sub_matches)) => {
+            install_apps(sub_matches).await?;
+        }
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
         _ => {
@@ -157,6 +159,90 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
             }
         }
         Err(err) => println!("{}", err),
+    }
+
+    Ok(())
+}
+
+async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
+    
+    // Identify the address to write the new app(s)
+    let lister = Lister::new();
+    let probes = lister.list_all();
+    println!("Probes: {:?}\n", probes);
+
+    let ans = Select::new("Which probe do you want to use?", probes).prompt();
+
+    match ans {
+        Ok(choice) => {
+            let probe = choice.open().unwrap();
+
+            let chip = sub_matches.get_one::<String>("chip").unwrap();
+            let board = sub_matches.get_one::<String>("board").unwrap();
+
+            let board_settings = BoardSettings::new(board.clone(), chip.clone());
+
+            let mut session = probe
+                .attach(board_settings.chip, Permissions::default())
+                .unwrap();
+
+            println!("Session target: {:?}\n", session.target());
+            println!("Session interfaces: {:?}\n", session.architecture());
+            println!("Session core: {:?}\n", session.list_cores());
+
+            let core_index = sub_matches.get_one::<usize>("core").unwrap();
+
+            let mut core = session.core(*core_index).unwrap();
+
+            let mut address = board_settings.start_address;
+
+            // Jump through the linked list of apps
+            loop {
+                // Read a block of 200 8-bit words
+                let mut buff = vec![0u8; 200];
+                match core.read(address, &mut buff) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        println!("Error reading memory: {:?}", e);
+                        break;
+                    }
+                }
+                let (_ver, _header_len, whole_len) =
+                    match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
+                        Ok((ver, header_len, whole_len)) if header_len != 0 => {
+                            (ver, header_len, whole_len)
+                        }
+                        _ => break, // No more apps
+                    };
+
+                address += whole_len as u64;
+            }
+        }
+        Err(err) => println!("{}", err),
+    }
+    
+    // Enter bootloader mode for microbit
+    sleep(Duration::from_millis(500)).await;
+    let ports = tokio_serial::available_ports()?;
+    println!("Found {} ports\n", ports.len());
+    // Use the first port
+    let port = ports[0].clone();
+    println!("Using port {} for the bootloader\n", port.port_name);
+    // Open the port and configure it
+    let builder = tokio_serial::new(port.port_name, 115200);
+    match SerialStream::open(&builder) {
+        Ok(mut port) => {
+            println!("Serial port opened successfully!");
+            port.set_parity(Parity::None).unwrap();
+            port.set_stop_bits(StopBits::One).unwrap();
+            port.set_flow_control(FlowControl::None).unwrap();
+            port.set_timeout(Duration::from_millis(500)).unwrap();
+            port.write_request_to_send(false).unwrap();
+            port.write_data_terminal_ready(false).unwrap();
+        },
+        Err(e) => {
+            eprintln!("Failed to open serial port: {}", e);
+        }
     }
 
     Ok(())

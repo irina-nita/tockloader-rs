@@ -1,4 +1,6 @@
 pub struct BoardSettings {
+    // We will likely need this in the future
+    #[allow(dead_code)]
     pub board: String,
     pub chip: String,
     pub start_address: u64,
