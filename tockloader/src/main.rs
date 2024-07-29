@@ -7,11 +7,10 @@ mod cli;
 mod errors;
 mod interfaces;
 
-use board_settings::BoardSettings;
+use board_settings::{get_bootloader_version, BoardSettings};
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
-use interfaces::serial::{serial_data_get, serial_pick};
 
 use glob::glob;
 use inquire::Select;
@@ -52,14 +51,7 @@ async fn run() -> Result<(), TockloaderError> {
             list_probes(sub_matches).await?;
         }
         Some(("install", sub_matches)) => {}
-        Some(("info", _sub_matches)) => {
-            let mut vec_boards: Vec<String> = vec![];
-            let mut board_ports: Vec<String> = vec![];
-
-            (vec_boards, board_ports) = serial_data_get().await;
-
-            let _ = serial_pick(vec_boards, board_ports).await;
-        }
+        Some(("info", _sub_matches)) => {}
 
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
@@ -170,4 +162,34 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     }
 
     Ok(())
+}
+
+async fn info_probe(sub_matches: &ArgMatches) {
+    let lister = Lister::new();
+    let probes = lister.list_all();
+    println!("Probes: {:?}\n", probes);
+
+    let ans = Select::new("Which probe do you want to use?", probes).prompt();
+    match ans {
+        Ok(choice) => {
+            let probe = choice.open().unwrap();
+
+            let chip = sub_matches.get_one::<String>("chip").unwrap();
+            let board = sub_matches.get_one::<String>("board").unwrap();
+
+            let board_settings = BoardSettings::new(board.clone(), chip.clone());
+
+            let mut session = probe
+                .attach(board_settings.chip, Permissions::default())
+                .unwrap();
+
+            ////
+            let core_index = sub_matches.get_one::<usize>("core").unwrap();
+
+            let core = session.core(*core_index).unwrap();
+
+            let bootloader_version = get_bootloader_version(core);
+        }
+        Err(err) => println!("While picking probe:{}", err),
+    }
 }
