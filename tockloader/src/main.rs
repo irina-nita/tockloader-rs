@@ -11,6 +11,7 @@ use board_settings::BoardSettings;
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
+use interfaces::serial::{serial_data_get, serial_pick};
 
 use glob::glob;
 use inquire::Select;
@@ -51,6 +52,15 @@ async fn run() -> Result<(), TockloaderError> {
             list_probes(sub_matches).await?;
         }
         Some(("install", sub_matches)) => {}
+        Some(("info", _sub_matches)) => {
+            let mut vec_boards: Vec<String> = vec![];
+            let mut board_ports: Vec<String> = vec![];
+
+            (vec_boards, board_ports) = serial_data_get().await;
+
+            let _ = serial_pick(vec_boards, board_ports).await;
+        }
+
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
         _ => {
