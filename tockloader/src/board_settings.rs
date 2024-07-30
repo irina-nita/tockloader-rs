@@ -28,7 +28,7 @@ impl BoardSettings {
 pub fn get_bootloader_version(mut board_core: Core) -> String {
     let address = 0x40E;
 
-    let mut buf = [0u8; 1];
+    let mut buf = [0u8; 10];
 
     board_core.read_8(address, &mut buf);
 
