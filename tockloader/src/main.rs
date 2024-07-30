@@ -7,12 +7,14 @@ mod cli;
 mod errors;
 mod interfaces;
 
+use std::fs::File;
+use std::io::Read;
+
 use board_settings::BoardSettings;
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
 
-use glob::glob;
 use inquire::Select;
 use probe_rs::probe::list::Lister;
 use probe_rs::{MemoryInterface, Permissions};
@@ -21,6 +23,7 @@ use tbf_parser::types::*;
 use tock_process_console;
 use tokio::time::{Duration, sleep};
 use tokio_serial::{SerialPort, SerialStream, Parity, StopBits, FlowControl};
+use tar::Archive;
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -224,7 +227,7 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     // Enter bootloader mode for microbit
     sleep(Duration::from_millis(500)).await;
     let ports = tokio_serial::available_ports()?;
-    println!("Found {} ports\n", ports.len());
+    println!("Found {} port(s)\n", ports.len());
     // Use the first port
     let port = ports[0].clone();
     println!("Using port {} for the bootloader\n", port.port_name);
@@ -232,7 +235,7 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     let builder = tokio_serial::new(port.port_name, 115200);
     match SerialStream::open(&builder) {
         Ok(mut port) => {
-            println!("Serial port opened successfully!");
+            println!("Serial port opened successfully!\n");
             port.set_parity(Parity::None).unwrap();
             port.set_stop_bits(StopBits::One).unwrap();
             port.set_flow_control(FlowControl::None).unwrap();
@@ -241,9 +244,30 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
             port.write_data_terminal_ready(false).unwrap();
         },
         Err(e) => {
-            eprintln!("Failed to open serial port: {}", e);
+            eprintln!("Failed to open serial port: {}\n", e);
         }
     }
 
+    let tab_path = sub_matches.get_one::<String>("tab").unwrap();
+    
+    let mut archive = Archive::new(File::open(tab_path).unwrap());
+    for entry in archive.entries().unwrap().into_iter() {
+        match entry {
+            Ok(mut entry) => {
+                if let Ok(path) = entry.path() {
+                    if let Some(file_name) = path.file_name() {
+                        if file_name == "metadata.toml" {
+                            let mut buf = String::new();
+                            entry.read_to_string(&mut buf).unwrap();
+                            println!("metadata.toml content: {:?}", buf);
+                        }
+                    } else {
+                        eprintln!("Failed to get path");
+                    }
+                }
+            }
+            Err(e) => eprintln!("Failed to get entry: {}", e),
+        }
+    }
     Ok(())
 }

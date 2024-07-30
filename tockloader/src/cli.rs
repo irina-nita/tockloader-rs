@@ -73,5 +73,6 @@ fn get_channel_args() -> Vec<clap::Arg> {
         arg!(--core <CORE> "Explicitly specify the core")
             .value_parser(clap::value_parser!(usize))
             .default_value("0"),
+        arg!(--tab <TAB> "Specify the path of the tab file"),
     ]
 }
