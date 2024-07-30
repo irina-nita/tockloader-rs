@@ -11,7 +11,7 @@ pub fn get_bootloader_version(board_core: &mut Core) -> String {
 
     let mut buf = [0u8; 12];
 
-    let _=board_core.read_8(address, &mut buf);
+    let _ = board_core.read_8(address, &mut buf);
 
     let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
 
@@ -24,47 +24,39 @@ pub fn get_bootloader_version(board_core: &mut Core) -> String {
 }
 
 pub fn get_all_attributes(board_core: &mut Core) -> HashMap<String, String> {
-
-
     let address = 0x600;
     let mut buf = [0u8; 64 * 16];
-    let _=board_core.read(address, &mut buf);
+    let _ = board_core.read(address, &mut buf);
 
     let mut data = buf.chunks(64);
-    let mut i = 16;
 
     let mut attributes: HashMap<String, String> = HashMap::new();
 
-    for _ in 0..data.len()
-    {
-        let mut step = match data.next()
-        {
+    for _ in 0..data.len() {
+        let step = match data.next() {
             Some(data) => data,
             None => break,
         };
 
+        let step_option = decode_attribute(step);
 
-        let step_option = decode_attribute(&step);
-
-        if step_option.is_none() 
-        {
-            continue
+        if step_option.is_none() {
+            continue;
         }
 
         let step_hashmap = step_option.unwrap();
 
-        attributes.insert(format!("{}", step_hashmap[0]), format!("{}", step_hashmap[1]));
+        attributes.insert(step_hashmap[0].to_string(), step_hashmap[1].to_string());
     }
-
 
     attributes
 }
 
-fn decode_attribute(step: &[u8]) -> Option<[String; 2]>{
+fn decode_attribute(step: &[u8]) -> Option<[String; 2]> {
     let raw_key = &step[0..8];
 
     let decoder_key = utf8_decode::Decoder::new(raw_key.iter().cloned());
-    
+
     let mut key = String::new();
     for n in decoder_key {
         key.push(n.expect("Error getting key for attributes."));
@@ -86,5 +78,5 @@ fn decode_attribute(step: &[u8]) -> Option<[String; 2]>{
     }
 
     value = value.trim_end_matches('\0').to_string();
-    Some([key,value])
+    Some([key, value])
 }

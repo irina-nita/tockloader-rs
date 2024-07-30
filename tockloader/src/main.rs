@@ -2,23 +2,23 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-mod board_settings;
 mod board_attributes;
-mod kernel_attributes;
+mod board_settings;
 mod cli;
 mod errors;
 mod interfaces;
+mod kernel_attributes;
 
-use board_settings::BoardSettings;
 use board_attributes::{get_all_attributes, get_bootloader_version};
-use kernel_attributes::kernel_attributes;
+use board_settings::BoardSettings;
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
+use kernel_attributes::kernel_attributes;
 
 use inquire::Select;
 use probe_rs::probe::list::Lister;
-use probe_rs::{Core, MemoryInterface, Permissions};
+use probe_rs::{MemoryInterface, Permissions};
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
 
@@ -195,10 +195,11 @@ async fn info_probe(sub_matches: &ArgMatches) {
             let mut attributes = get_all_attributes(&mut core);
 
             println!("Attributes:");
-            println!("Bootloader Version: {}                [0x40E]", bootloader_version);
+            println!(
+                "Bootloader Version: {}                [0x40E]",
+                bootloader_version
+            );
             println!("Kernel Attributes");
-            println!("  sentinel:   Tock");
-            println!("  version:    ");
 
             kernel_attributes(&mut core, &mut attributes);
         }
