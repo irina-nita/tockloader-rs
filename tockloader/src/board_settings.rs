@@ -1,3 +1,5 @@
+use std::{collections::HashMap, str::from_utf8};
+
 use probe_rs::{Core, MemoryInterface};
 
 pub struct BoardSettings {
@@ -23,21 +25,4 @@ impl BoardSettings {
             },
         }
     }
-}
-
-pub fn get_bootloader_version(mut board_core: Core) -> String {
-    let address = 0x40E;
-
-    let mut buf = [0u8; 10];
-
-    board_core.read_8(address, &mut buf);
-
-    let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
-
-    let mut string = String::new();
-    for n in decoder {
-        string.push(n.expect("Error decoding bootloader version"));
-    }
-
-    string
 }
