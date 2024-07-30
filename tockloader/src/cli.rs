@@ -74,5 +74,6 @@ fn get_channel_args() -> Vec<clap::Arg> {
             .value_parser(clap::value_parser!(usize))
             .default_value("0"),
         arg!(--tab <TAB> "Specify the path of the tab file"),
+        arg!(--kernver <KERNVER> "Specify the kernel version"),
     ]
 }

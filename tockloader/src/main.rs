@@ -24,6 +24,7 @@ use tock_process_console;
 use tokio::time::{Duration, sleep};
 use tokio_serial::{SerialPort, SerialStream, Parity, StopBits, FlowControl};
 use tar::Archive;
+use utf8_decode::Decoder;
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -168,6 +169,89 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
 }
 
 async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
+
+     // Enter bootloader mode for microbit
+     sleep(Duration::from_millis(500)).await;
+     let ports = tokio_serial::available_ports()?;
+     println!("Found {} port(s)\n", ports.len());
+     // Use the first port
+     let port = ports[0].clone();
+     println!("Using port {} for the bootloader\n", port.port_name);
+     // Open the port and configure it
+     let builder = tokio_serial::new(port.port_name, 115200);
+     match SerialStream::open(&builder) {
+         Ok(mut port) => {
+             println!("Serial port opened successfully!\n");
+             port.set_parity(Parity::None).unwrap();
+             port.set_stop_bits(StopBits::One).unwrap();
+             port.set_flow_control(FlowControl::None).unwrap();
+             port.set_timeout(Duration::from_millis(500)).unwrap();
+             port.write_request_to_send(false).unwrap();
+             port.write_data_terminal_ready(false).unwrap();
+         },
+         Err(e) => {
+             eprintln!("Failed to open serial port: {}\n", e);
+         }
+     }
+ 
+     let chip = sub_matches.get_one::<String>("chip").unwrap();
+     let board = sub_matches.get_one::<String>("board").unwrap();
+     let board_settings = BoardSettings::new(board.clone(), chip.clone());
+     let tab_path = sub_matches.get_one::<String>("tab").unwrap();
+ 
+     // This is temporary
+     let kernel_version = sub_matches.get_one::<String>("kernver").unwrap();
+     
+     let mut archive = Archive::new(File::open(tab_path).unwrap());
+     for entry in archive.entries().unwrap().into_iter() {
+         match entry {
+             Ok(mut entry) => {
+                 if let Ok(path) = entry.path() {
+                     if let Some(file_name) = path.file_name() {
+                         if file_name == "metadata.toml" {
+                             let mut buf = String::new();
+                             entry.read_to_string(&mut buf).unwrap();
+                             let replaced = buf.replace("\"", "");
+                             let parts = replaced.split("\n");
+                             let collection = parts.collect::<Vec<&str>>();
+ 
+                             for item in collection {
+                                 if item.contains("only-for-boards") {
+                                     let columns = item.split("=");
+                                     let elem = columns.collect::<Vec<&str>>();
+                                     let all_boards = elem[1].split(", ");
+                                     let boards = all_boards.collect::<Vec<&str>>();
+                                     for bd in boards {
+                                         if bd == board {
+                                             println!("App is compatible with board!");
+                                             break;
+                                         }
+                                     }
+                                     println!{"App is not compatible with board!"};
+                                     break;
+                                 }
+                                 if item.contains("minimum-tock-kernel-version") {
+                                     let columns = item.split("=");
+                                     let elem = columns.collect::<Vec<&str>>();
+                                     let kernver = elem[1];
+                                     if kernver == kernel_version {
+                                         println!("App is compatible with this kernel version!");
+                                     }
+                                     else {
+                                         println!{"App is compatible with this kernel version!"};
+                                     }
+                                     break;
+                                 }
+                             }
+                         }
+                     } else {
+                         eprintln!("Failed to get path");
+                     }
+                 }
+             }
+             Err(e) => eprintln!("Failed to get entry: {}", e),
+         }
+     }
     
     // Identify the address to write the new app(s)
     let lister = Lister::new();
@@ -179,11 +263,6 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     match ans {
         Ok(choice) => {
             let probe = choice.open().unwrap();
-
-            let chip = sub_matches.get_one::<String>("chip").unwrap();
-            let board = sub_matches.get_one::<String>("board").unwrap();
-
-            let board_settings = BoardSettings::new(board.clone(), chip.clone());
 
             let mut session = probe
                 .attach(board_settings.chip, Permissions::default())
@@ -220,75 +299,32 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
 
                 address += whole_len as u64;
             }
+
+            let mut bytes = vec![0u8; 1024];
+            match core.read(0x600, &mut bytes) {
+                Ok(_) => {
+                        let decoder = Decoder::new(bytes[0..8].iter().cloned());
+                        let mut key = String::new();
+                        for c in decoder {
+                            key.push(c?);
+                        }
+                        println!("{}", key);
+                        let vlen = bytes[8];
+                        let index = vlen + 9;
+                        let decoder = Decoder::new(bytes[9..index as usize].iter().cloned());
+                        let mut value = String::new();
+                        for c in decoder {
+                            value.push(c?);
+                        }
+                        println!("{}", value);
+                }
+                Err(e) => {
+                    println!("Error reading memory: {:?}", e);
+                }
+            }
         }
         Err(err) => println!("{}", err),
     }
     
-    // Enter bootloader mode for microbit
-    sleep(Duration::from_millis(500)).await;
-    let ports = tokio_serial::available_ports()?;
-    println!("Found {} port(s)\n", ports.len());
-    // Use the first port
-    let port = ports[0].clone();
-    println!("Using port {} for the bootloader\n", port.port_name);
-    // Open the port and configure it
-    let builder = tokio_serial::new(port.port_name, 115200);
-    match SerialStream::open(&builder) {
-        Ok(mut port) => {
-            println!("Serial port opened successfully!\n");
-            port.set_parity(Parity::None).unwrap();
-            port.set_stop_bits(StopBits::One).unwrap();
-            port.set_flow_control(FlowControl::None).unwrap();
-            port.set_timeout(Duration::from_millis(500)).unwrap();
-            port.write_request_to_send(false).unwrap();
-            port.write_data_terminal_ready(false).unwrap();
-        },
-        Err(e) => {
-            eprintln!("Failed to open serial port: {}\n", e);
-        }
-    }
-
-    let board = sub_matches.get_one::<String>("board").unwrap();
-
-    let tab_path = sub_matches.get_one::<String>("tab").unwrap();
-    
-    let mut archive = Archive::new(File::open(tab_path).unwrap());
-    for entry in archive.entries().unwrap().into_iter() {
-        match entry {
-            Ok(mut entry) => {
-                if let Ok(path) = entry.path() {
-                    if let Some(file_name) = path.file_name() {
-                        if file_name == "metadata.toml" {
-                            let mut buf = String::new();
-                            entry.read_to_string(&mut buf).unwrap();
-                            let replaced = buf.replace("\"", "");
-                            let parts = replaced.split("\n");
-                            let collection = parts.collect::<Vec<&str>>();
-
-                            for item in collection {
-                                if item.contains("only-for-boards") {
-                                    let columns = item.split("=");
-                                    let elem = columns.collect::<Vec<&str>>();
-                                    let all_boards = elem[1].split(", ");
-                                    let boards = all_boards.collect::<Vec<&str>>();
-                                    for bd in boards {
-                                        if bd == board {
-                                            println!("App is compatible with board!");
-                                            break;
-                                        }
-                                    }
-                                    println!{"App is not compatible with board!"};
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        eprintln!("Failed to get path");
-                    }
-                }
-            }
-            Err(e) => eprintln!("Failed to get entry: {}", e),
-        }
-    }
     Ok(())
 }
