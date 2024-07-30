@@ -3,6 +3,7 @@ use std::{collections::HashMap, str::from_utf8};
 use probe_rs::{Core, MemoryInterface};
 
 pub struct BoardSettings {
+    #[allow(dead_code)]
     pub board: String,
     pub chip: String,
     pub start_address: u64,
