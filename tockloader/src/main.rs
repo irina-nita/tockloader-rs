@@ -264,11 +264,6 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
         Ok(choice) => {
             let probe = choice.open().unwrap();
 
-            let chip = sub_matches.get_one::<String>("chip").unwrap();
-            let board = sub_matches.get_one::<String>("board").unwrap();
-
-            let board_settings = BoardSettings::new(board.clone(), chip.clone());
-
             let mut session = probe
                 .attach(board_settings.chip, Permissions::default())
                 .unwrap();
