@@ -248,6 +248,8 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
         }
     }
 
+    let board = sub_matches.get_one::<String>("board").unwrap();
+
     let tab_path = sub_matches.get_one::<String>("tab").unwrap();
     
     let mut archive = Archive::new(File::open(tab_path).unwrap());
@@ -259,7 +261,26 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
                         if file_name == "metadata.toml" {
                             let mut buf = String::new();
                             entry.read_to_string(&mut buf).unwrap();
-                            println!("metadata.toml content: {:?}", buf);
+                            let replaced = buf.replace("\"", "");
+                            let parts = replaced.split("\n");
+                            let collection = parts.collect::<Vec<&str>>();
+
+                            for item in collection {
+                                if item.contains("only-for-boards") {
+                                    let columns = item.split("=");
+                                    let elem = columns.collect::<Vec<&str>>();
+                                    let all_boards = elem[1].split(", ");
+                                    let boards = all_boards.collect::<Vec<&str>>();
+                                    for bd in boards {
+                                        if bd == board {
+                                            println!("App is compatible with board!");
+                                            break;
+                                        }
+                                    }
+                                    println!{"App is not compatible with board!"};
+                                    break;
+                                }
+                            }
                         }
                     } else {
                         eprintln!("Failed to get path");
