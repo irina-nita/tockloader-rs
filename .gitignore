@@ -3,9 +3,13 @@
 # Copyright OXIDOS AUTOMOTIVE 2024.
 
 /target
+<<<<<<< HEAD
 /Cargo.lock
 <<<<<<< HEAD
 /.vscode
 =======
 /.vscode
 >>>>>>> 7e0e242 (info basic setup)
+=======
+/Cargo.lock
+>>>>>>> 62806cd (warning handling + adding vscode automatic formating)

@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-mod board_settings;
 mod board_attributes;
-mod kernel_attributes;
+mod board_settings;
 mod cli;
 mod errors;
 mod interfaces;
+mod kernel_attributes;
 
-use board_settings::{BoardSettings};
 use board_attributes::{get_all_attributes, get_bootloader_version};
-use kernel_attributes::kernel_attributes;
+use board_settings::BoardSettings;
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
+use kernel_attributes::kernel_attributes;
 
 use inquire::Select;
 use probe_rs::probe::list::Lister;
@@ -50,15 +50,11 @@ async fn run() -> Result<(), TockloaderError> {
         Some(("list", sub_matches)) => {
             list_probes(sub_matches).await?;
         }
-<<<<<<< HEAD
-        Some(("install", _sub_matches)) => {}
-=======
         Some(("install", sub_matches)) => {}
         Some(("info", sub_matches)) => {
             info_probe(sub_matches).await;
         }
 
->>>>>>> 7e0e242 (info basic setup)
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
         _ => {
@@ -199,17 +195,17 @@ async fn info_probe(sub_matches: &ArgMatches) {
             let mut attributes = get_all_attributes(&mut core);
 
             println!("Attributes:");
-            println!("Bootloader Version: {}                [0x40E]", bootloader_version);
+            println!(
+                "Bootloader Version: {}                [0x40E]",
+                bootloader_version
+            );
             println!("Kernel Attributes");
-            println!("  sentinel:   Tock");
-            println!("  version:    ");
 
             kernel_attributes(&mut core, &mut attributes);
         }
         Err(err) => println!("While picking probe:{}", err),
     }
 }
-
 
 fn info_app_list(mut board_core: Core, board_settings: BoardSettings) {
     let mut address = board_settings.start_address;
@@ -258,10 +254,7 @@ fn info_app_list(mut board_core: Core, board_settings: BoardSettings) {
                 );
             }
             // TODO(MicuAna): refactor when reworking errors
-            Err(TbfParseError::ChecksumMismatch(
-                provided_checksum,
-                calculated_checksum,
-            )) => {
+            Err(TbfParseError::ChecksumMismatch(provided_checksum, calculated_checksum)) => {
                 println!(
                     "Checksum mismatch: provided = {}, calculated = {}",
                     provided_checksum, calculated_checksum

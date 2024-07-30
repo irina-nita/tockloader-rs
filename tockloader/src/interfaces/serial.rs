@@ -5,10 +5,8 @@
 pub mod board_interface;
 pub mod virtual_terminal;
 
-use std::io::stdin;
-
 use clap::ArgMatches;
-use tokio_serial::{SerialPortType, SerialStream};
+use tokio_serial::SerialStream;
 
 use crate::errors::TockloaderError;
 
