@@ -16,7 +16,7 @@ use glob::glob;
 use inquire::Select;
 use interfaces::{build_interface, traits::*};
 use probe_rs::probe::list::Lister;
-use probe_rs::{MemoryInterface, Permissions};
+use probe_rs::{Core, MemoryInterface, Permissions};
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
 use tock_process_console;
@@ -51,7 +51,9 @@ async fn run() -> Result<(), TockloaderError> {
             list_probes(sub_matches).await?;
         }
         Some(("install", sub_matches)) => {}
-        Some(("info", _sub_matches)) => {}
+        Some(("info", sub_matches)) => {
+            info_probe(sub_matches).await;
+        }
 
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
@@ -165,9 +167,9 @@ async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
 }
 
 async fn info_probe(sub_matches: &ArgMatches) {
+    println!("entered");
     let lister = Lister::new();
     let probes = lister.list_all();
-    println!("Probes: {:?}\n", probes);
 
     let ans = Select::new("Which probe do you want to use?", probes).prompt();
     match ans {
@@ -189,7 +191,78 @@ async fn info_probe(sub_matches: &ArgMatches) {
             let core = session.core(*core_index).unwrap();
 
             let bootloader_version = get_bootloader_version(core);
+
+            println!("Bootloader Version: {}", bootloader_version);
+
+            info_app_list(core, board_settings);
         }
         Err(err) => println!("While picking probe:{}", err),
+    }
+}
+
+
+fn info_app_list(mut board_core: Core, board_settings: BoardSettings) {
+    let mut address = board_settings.start_address;
+    loop {
+        // Read a block of 200 8-bit words
+        let mut buff = vec![0u8; 200];
+        match board_core.read(address, &mut buff) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error reading memory: {:?}", e);
+                break;
+            }
+        }
+
+        let (ver, header_len, whole_len) =
+            match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
+                Ok((ver, header_len, whole_len)) if header_len != 0 => {
+                    println!("Version: {:?}\n", ver);
+                    println!("Header length: {:?}\n", header_len);
+                    println!("Whole length: {:?}\n", whole_len);
+                    (ver, header_len, whole_len)
+                }
+                _ => break, // No more apps
+            };
+
+        let header = parse_tbf_header(&buff[0..header_len as usize], ver);
+        match header {
+            Ok(header) => {
+                println!("Enabled: {:?}\n", header.enabled());
+                println!(
+                    "Minimum App Ram Size: {:?}\n",
+                    header.get_minimum_app_ram_size()
+                );
+                println!(
+                    "Init function offset: {:?}\n",
+                    header.get_init_function_offset()
+                );
+                println!("Protected size: {:?}\n", header.get_protected_size());
+                println!(
+                    "Package name: {:?}\n",
+                    header.get_package_name().unwrap_or_default()
+                );
+                println!(
+                    "Kernel version: {:?}\n",
+                    header.get_kernel_version().unwrap_or_default()
+                );
+            }
+            // TODO(MicuAna): refactor when reworking errors
+            Err(TbfParseError::ChecksumMismatch(
+                provided_checksum,
+                calculated_checksum,
+            )) => {
+                println!(
+                    "Checksum mismatch: provided = {}, calculated = {}",
+                    provided_checksum, calculated_checksum
+                );
+                break;
+            }
+            Err(e) => {
+                println!("Failed to parse TBF header: {:?}", e);
+                break;
+            }
+        }
+        address += whole_len as u64;
     }
 }
