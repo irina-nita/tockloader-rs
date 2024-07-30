@@ -3,11 +3,15 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 mod board_settings;
+mod board_attributes;
+mod kernel_attributes;
 mod cli;
 mod errors;
 mod interfaces;
 
-use board_settings::{get_bootloader_version, BoardSettings};
+use board_settings::{BoardSettings};
+use board_attributes::{get_all_attributes, get_bootloader_version};
+use kernel_attributes::kernel_attributes;
 use clap::ArgMatches;
 use cli::make_cli;
 use errors::TockloaderError;
@@ -188,13 +192,19 @@ async fn info_probe(sub_matches: &ArgMatches) {
             ////
             let core_index = sub_matches.get_one::<usize>("core").unwrap();
 
-            let core = session.core(*core_index).unwrap();
+            let mut core = session.core(*core_index).unwrap();
 
-            let bootloader_version = get_bootloader_version(core);
+            let bootloader_version = get_bootloader_version(&mut core);
 
-            println!("Bootloader Version: {}", bootloader_version);
+            let mut attributes = get_all_attributes(&mut core);
 
-            info_app_list(core, board_settings);
+            println!("Attributes:");
+            println!("Bootloader Version: {}                [0x40E]", bootloader_version);
+            println!("Kernel Attributes");
+            println!("  sentinel:   Tock");
+            println!("  version:    ");
+
+            kernel_attributes(&mut core, &mut attributes);
         }
         Err(err) => println!("While picking probe:{}", err),
     }
