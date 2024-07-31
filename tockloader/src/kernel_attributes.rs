@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use std::collections::HashMap;
+use core::str;
+use std::{collections::HashMap, string};
 
 use probe_rs::{Core, MemoryInterface};
 
@@ -20,15 +21,32 @@ pub fn kernel_attributes(board_core: &mut Core, attributes: &mut HashMap<String,
         (address_apps - 100).try_into().unwrap(),
         &mut kernel_attr_binary,
     );
-    //println!("{:?}", kernel_attr_binary);
+    // println!("{:?}", kernel_attr_binary);
 
     let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
+    let version = &kernel_attr_binary[92..96]; //str::from_utf8(&kernel_attr_binary[92..96]).expect("Not UTF-8.");
 
+    let mut version_formated: u16 = 0;
+    let mut prefix = true;
+    for i in 0..version.len() {
+        if version[i] == 0 && prefix == true {
+        } else {
+            prefix = false;
+            version_formated = version_formated * 10 + version[i] as u16;
+        }
+    }
+
+    let app_memory = &kernel_attr_binary[88..92];
+
+    let start = from_slice_u32();
+    println!("app_Mem: {:?}", app_memory);
+
+    println!("Kernel Attributes");
     println!("  Sentinel: {:?}", sentinel);
-
-    let version = kernel_attr_binary[95];
-
-    println!("  Version: {:?}", version);
+    println!("  Version: {:?}", version_formated);
+    println!("KATLV: APP Memory (0x101)");
+    // println!("  app_memory_start: {:?}",);
+    // println!("  app_memory_len: {:?}",);
 }
 
 // TODO(RARES): will have to use this in board attributes too where needed to debload some of the code

@@ -185,7 +185,6 @@ async fn info_probe(sub_matches: &ArgMatches) {
                 .attach(board_settings.chip, Permissions::default())
                 .unwrap();
 
-            ////
             let core_index = sub_matches.get_one::<usize>("core").unwrap();
 
             let mut core = session.core(*core_index).unwrap();
@@ -195,12 +194,7 @@ async fn info_probe(sub_matches: &ArgMatches) {
             let mut attributes = get_all_attributes(&mut core);
 
             println!("Attributes:");
-            println!(
-                "Bootloader Version: {}                [0x40E]",
-                bootloader_version
-            );
-            println!("Kernel Attributes");
-
+            println!("Bootloader Version: {}", bootloader_version);
             kernel_attributes(&mut core, &mut attributes);
         }
         Err(err) => println!("While picking probe:{}", err),
