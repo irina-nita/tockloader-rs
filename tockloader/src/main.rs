@@ -303,20 +303,24 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
             let mut bytes = vec![0u8; 1024];
             match core.read(0x600, &mut bytes) {
                 Ok(_) => {
-                        let decoder = Decoder::new(bytes[0..8].iter().cloned());
-                        let mut key = String::new();
-                        for c in decoder {
-                            key.push(c?);
+                    let mut i: u16 = 0;
+                    while i < 1024 {
+                            let decoder = Decoder::new(bytes[i as usize..(i+8) as usize].iter().cloned());
+                            let mut key = String::new();
+                            for c in decoder {
+                                key.push(c?);
+                            }
+                            println!("{}", key);
+                            let vlen = bytes[(i+8) as usize];
+                            let index: u16 = vlen as u16 + 9 ;
+                            let decoder = Decoder::new(bytes[(i+9) as usize..(i+index) as usize].iter().cloned());
+                            let mut value = String::new();
+                            for c in decoder {
+                                value.push(c?);
+                            }
+                            println!("{}", value);
+                            i = i + 64;
                         }
-                        println!("{}", key);
-                        let vlen = bytes[8];
-                        let index = vlen + 9;
-                        let decoder = Decoder::new(bytes[9..index as usize].iter().cloned());
-                        let mut value = String::new();
-                        for c in decoder {
-                            value.push(c?);
-                        }
-                        println!("{}", value);
                 }
                 Err(e) => {
                     println!("Error reading memory: {:?}", e);
