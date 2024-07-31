@@ -31,7 +31,12 @@ fn get_subcommands() -> Vec<Command> {
             .args(get_app_args())
             .args(get_channel_args())
             .arg_required_else_help(false),
-        Command::new("install").about("Install apps"),
+        Command::new("install")
+            .about("Install apps")
+            .about("Install apps on a board")
+            .args(get_app_args())
+            .args(get_channel_args())
+            .arg_required_else_help(false),
     ]
 }
 
@@ -69,5 +74,7 @@ fn get_channel_args() -> Vec<clap::Arg> {
         arg!(--core <CORE> "Explicitly specify the core")
             .value_parser(clap::value_parser!(usize))
             .default_value("0"),
+        arg!(--tab <TAB> "Specify the path of the tab file"),
+        arg!(--kernver <KERNVER> "Specify the kernel version"),
     ]
 }
