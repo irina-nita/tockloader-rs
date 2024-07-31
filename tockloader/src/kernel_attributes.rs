@@ -4,7 +4,7 @@
 
 
 use core::str;
-use std::{collections::HashMap, string};
+use std::collections::HashMap;
 
 use probe_rs::{Core, MemoryInterface};
 
@@ -38,8 +38,7 @@ pub fn kernel_attributes(board_core: &mut Core, attributes: &mut HashMap<String,
     }
 
     let app_memory = &kernel_attr_binary[88..92];
-
-    let start = from_slice_u32();
+    
     println!("app_Mem: {:?}", app_memory);
 
     println!("Kernel Attributes");
