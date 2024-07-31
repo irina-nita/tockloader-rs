@@ -31,7 +31,8 @@ fn get_subcommands() -> Vec<Command> {
             .args(get_app_args())
             .args(get_channel_args())
             .arg_required_else_help(false),
-        Command::new("install").about("Install apps")
+        Command::new("install")
+            .about("Install apps")
             .about("Install apps on a board")
             .args(get_app_args())
             .args(get_channel_args())
