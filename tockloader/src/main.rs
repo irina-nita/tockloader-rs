@@ -178,18 +178,31 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     // This is temporary
     let kernel_version = sub_matches.get_one::<String>("kernver").unwrap();
     
+    // Get hard-coded start_address
+    let mut address = board_settings.start_address;
+
     // List probes, choose one and open the port
     let lister = Lister::new();
     let probes = lister.list_all();
     let ans = Select::new("Which probe do you want to use?", probes).prompt();
     match ans {
         Ok(choice) => {
+
+            //Open port with probe-rs
+            let probe = choice.open().unwrap();
+            let mut session = probe
+                .attach(board_settings.chip, Permissions::default())
+                .unwrap();
+
+            let core_index = sub_matches.get_one::<usize>("core").unwrap();
+            let mut core = session.core(*core_index).unwrap();
+
             let serial_nr = choice.clone().serial_number.unwrap();
             let ports = tokio_serial::available_ports()?;
             for port in ports {
                 if let SerialPortType::UsbPort(inner) = port.port_type{
                     if inner.serial_number.unwrap() == serial_nr {
-                        // Open the port and configure it
+                        // Open port and configure it with tokio_serial
                         let builder = tokio_serial::new(port.port_name, 115200);
                         match SerialStream::open(&builder) {
                             Ok(mut port) => {
@@ -208,21 +221,6 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
                     }
                 }
             }
-
-            let probe = choice.open().unwrap();
-            let mut session = probe
-                .attach(board_settings.chip, Permissions::default())
-                .unwrap();
-
-            println!("Session target: {:?}\n", session.target());
-            println!("Session interfaces: {:?}\n", session.architecture());
-            println!("Session core: {:?}\n", session.list_cores());
-
-            let core_index = sub_matches.get_one::<usize>("core").unwrap();
-
-            let mut core = session.core(*core_index).unwrap();
-
-            let mut address = board_settings.start_address;
 
             // Jump through the linked list of apps
             loop {
