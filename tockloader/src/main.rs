@@ -184,8 +184,7 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     let ans = Select::new("Which probe do you want to use?", probes).prompt();
     match ans {
         Ok(choice) => {
-            let probe = choice.open().unwrap();
-            let serial_nr = choice.serial_number.unwrap();
+            let serial_nr = choice.clone().serial_number.unwrap();
             let ports = tokio_serial::available_ports()?;
             for port in ports {
                 if let SerialPortType::UsbPort(inner) = port.port_type{
@@ -210,6 +209,7 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
                 }
             }
 
+            let probe = choice.open().unwrap();
             let mut session = probe
                 .attach(board_settings.chip, Permissions::default())
                 .unwrap();
