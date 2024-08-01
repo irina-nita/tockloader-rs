@@ -37,7 +37,7 @@ async fn run() -> Result<(), TockloaderError> {
         Some(("list", sub_matches)) => {
             // TODO(NegrilaRares) Result handle
             match list_probe(sub_matches).await {
-                Ok(()) => {}
+                Ok(apps_details) => apps_details,
                 Err(e) => panic!("While listing apps encountered: {}", e),
             };
         }
