@@ -283,7 +283,7 @@ pub async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderErro
                             value.push(c?);
                         }
                         println!("{}", value);
-                        i = i + 64;
+                        i += 64;
                     }
                 }
                 Err(e) => {
@@ -295,7 +295,7 @@ pub async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderErro
     }
 
     let mut archive = Archive::new(File::open(tab_path).unwrap());
-    for entry in archive.entries().unwrap().into_iter() {
+    for entry in archive.entries().unwrap() {
         match entry {
             Ok(mut entry) => {
                 if let Ok(path) = entry.path() {
@@ -329,7 +329,7 @@ pub async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderErro
                                     if kernver == kernel_version {
                                         println!("App is compatible with this kernel version!");
                                     } else {
-                                        println! {"App is compatible with this kernel version!"};
+                                        println! {"App is not compatible with this kernel version!"};
                                     }
                                     break;
                                 }
