@@ -1,7 +1,12 @@
+mod board_attributes;
 mod board_settings;
 mod errors;
+mod kernel_attributes;
 
+use board_attributes::{get_all_attributes, get_bootloader_version};
 use board_settings::BoardSettings;
+use kernel_attributes::kernel_attributes;
+
 use clap::ArgMatches;
 use errors::TockloaderError;
 use inquire::Select;
@@ -10,7 +15,7 @@ use probe_rs::{MemoryInterface, Permissions};
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
 
-pub async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
+pub async fn list_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     let lister = Lister::new();
     let probes = lister.list_all();
     println!("Probes: {:?}\n", probes);
@@ -108,4 +113,43 @@ pub async fn list_probes(sub_matches: &ArgMatches) -> Result<(), TockloaderError
     }
 
     Ok(())
+}
+
+pub async fn info_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
+    println!("entered");
+    let lister = Lister::new();
+    let probes = lister.list_all();
+
+    let ans = Select::new("Which probe do you want to use?", probes).prompt();
+    match ans {
+        Ok(choice) => {
+            let probe = choice.open().unwrap();
+
+            let chip = sub_matches.get_one::<String>("chip").unwrap();
+            let board = sub_matches.get_one::<String>("board").unwrap();
+
+            let board_settings = BoardSettings::new(board.clone(), chip.clone());
+
+            let mut session = probe
+                .attach(board_settings.chip, Permissions::default())
+                .unwrap();
+
+            let core_index = sub_matches.get_one::<usize>("core").unwrap();
+
+            let mut core = session.core(*core_index).unwrap();
+
+            let bootloader_version = get_bootloader_version(&mut core);
+
+            let mut attributes = get_all_attributes(&mut core);
+
+            println!("Bootloader Version: {}", bootloader_version);
+            kernel_attributes(&mut core, &mut attributes);
+            Ok(())
+        }
+        Err(err) => {
+            println!("While picking probe:{}", err);
+            //TODD(NegrilaRares) JUST TEMPLATE ERROR MUST BE CHANGED LATER
+            Err(TockloaderError::NoPortAvailable)
+        }
+    }
 }

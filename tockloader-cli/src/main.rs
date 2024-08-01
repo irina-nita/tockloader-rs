@@ -7,6 +7,7 @@ mod errors;
 
 use cli::make_cli;
 use errors::TockloaderError;
+use tockloader_lib::{info_probe, list_probe};
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -35,9 +36,19 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("list", sub_matches)) => {
             // TODO(NegrilaRares) Result handle
-            tockloader_lib::list_probes(sub_matches).await;
+            match list_probe(sub_matches).await {
+                Ok(()) => {}
+                Err(e) => panic!("While listing apps encountered: {}", e),
+            };
         }
         Some(("install", _sub_matches)) => {}
+        Some(("info", sub_matches)) => {
+            match info_probe(sub_matches).await {
+                Ok(()) => {}
+                Err(e) => panic!("While listing board info encountered: {}", e),
+            };
+        }
+
         // If only the "--debug" flag is set, then this branch is executed
         // Or, more likely at this stage, a subcommand hasn't been implemented yet.
         _ => {
