@@ -1,17 +1,15 @@
-mod board_attributes;
+mod attributes;
 mod board_settings;
 mod errors;
-mod kernel_attributes;
-
-use std::fs::File;
 
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
 
-use board_attributes::{get_all_attributes, get_bootloader_version};
+use attributes::board_attributes::{get_all_attributes, get_bootloader_version};
+use attributes::kernel_attributes::kernel_attributes;
 use board_settings::BoardSettings;
-use kernel_attributes::kernel_attributes;
 
 use clap::ArgMatches;
 use errors::TockloaderError;

@@ -3,9 +3,11 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 mod cli;
+mod display;
 mod errors;
 
 use cli::make_cli;
+use display::print_list;
 use errors::TockloaderError;
 use tockloader_lib::{info_probe, list_probe};
 
@@ -36,10 +38,11 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("list", sub_matches)) => {
             // TODO(NegrilaRares) Result handle
-            let _apps_details = match list_probe(sub_matches).await {
+            let apps_details = match list_probe(sub_matches).await {
                 Ok(apps_details) => apps_details,
                 Err(e) => panic!("While listing apps encountered: {}", e),
             };
+            print_list(apps_details);
         }
         Some(("install", _sub_matches)) => {}
         Some(("info", sub_matches)) => {
