@@ -18,9 +18,9 @@ use errors::TockloaderError;
 use inquire::Select;
 use probe_rs::probe::list::Lister;
 use probe_rs::{MemoryInterface, Permissions};
+use tar::Archive;
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
-use tar::Archive;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortType, SerialStream, StopBits};
 use utf8_decode::Decoder;
 
@@ -137,7 +137,9 @@ pub async fn list_probe(
     Ok(apps_details)
 }
 
-pub async fn info_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
+pub async fn info_probe(
+    sub_matches: &ArgMatches,
+) -> Result<HashMap<String, String>, TockloaderError> {
     let lister = Lister::new();
     let probes = lister.list_all();
 
@@ -163,15 +165,17 @@ pub async fn info_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError>
 
             let bootloader_version = get_bootloader_version(&mut core);
 
-            kernel_attributes(&mut core, &mut attributes);
+            let kernel_attributes = kernel_attributes(&mut core, &mut attributes);
 
             attributes.insert("bootloader_version".to_owned(), bootloader_version);
+
+            attributes.extend(kernel_attributes.into_iter());
 
             println!("{:?}", attributes);
 
             // println!("Bootloader Version: {}", bootloader_version);
 
-            Ok(())
+            Ok(attributes)
         }
         Err(err) => {
             println!("While picking probe:{}", err);
@@ -181,8 +185,7 @@ pub async fn info_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError>
     }
 }
 
-async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
-
+pub async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     // Get cli arguments
     let chip = sub_matches.get_one::<String>("chip").unwrap();
     let board = sub_matches.get_one::<String>("board").unwrap();
@@ -190,7 +193,7 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     let tab_path = sub_matches.get_one::<String>("tab").unwrap();
     // This is temporary
     let kernel_version = sub_matches.get_one::<String>("kernver").unwrap();
-    
+
     // Get hard-coded start_address
     let mut address = board_settings.start_address;
 
@@ -200,7 +203,6 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
     let ans = Select::new("Which probe do you want to use?", probes).prompt();
     match ans {
         Ok(choice) => {
-
             //Open port with probe-rs
             let probe = choice.open().unwrap();
             let mut session = probe
@@ -213,7 +215,7 @@ async fn install_apps(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
             let serial_nr = choice.clone().serial_number.unwrap();
             let ports = tokio_serial::available_ports()?;
             for port in ports {
-                if let SerialPortType::UsbPort(inner) = port.port_type{
+                if let SerialPortType::UsbPort(inner) = port.port_type {
                     if inner.serial_number.unwrap() == serial_nr {
                         // Open port and configure it with tokio_serial
                         let builder = tokio_serial::new(port.port_name, 115200);

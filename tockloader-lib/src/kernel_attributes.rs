@@ -7,7 +7,11 @@ use std::collections::HashMap;
 use byteorder::{ByteOrder, LittleEndian};
 use probe_rs::{Core, MemoryInterface};
 
-pub fn kernel_attributes(board_core: &mut Core, attributes: &mut HashMap<String, String>) {
+pub fn kernel_attributes(
+    board_core: &mut Core,
+    attributes: &mut HashMap<String, String>,
+) -> HashMap<String, String> {
+    let mut kernel_attributes: HashMap<String, String> = HashMap::new();
     let address_apps = i32::from_str_radix(
         attributes
             .get("appaddr")
@@ -23,7 +27,7 @@ pub fn kernel_attributes(board_core: &mut Core, attributes: &mut HashMap<String,
     );
 
     let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
-    let version = LittleEndian::read_uint(&kernel_attr_binary[95..96], 1);
+    let kernel_version = LittleEndian::read_uint(&kernel_attr_binary[95..96], 1);
 
     let app_memory_len = LittleEndian::read_u32(&kernel_attr_binary[84..92]);
     let app_memory_start = LittleEndian::read_u32(&kernel_attr_binary[80..84]);
@@ -31,15 +35,26 @@ pub fn kernel_attributes(board_core: &mut Core, attributes: &mut HashMap<String,
     let kernel_binary_start = LittleEndian::read_u32(&kernel_attr_binary[68..72]);
     let kernel_binary_len = LittleEndian::read_u32(&kernel_attr_binary[72..76]);
 
-    println!("Kernel Attributes");
-    println!("  Sentinel: {:?}", sentinel);
-    println!("  Version: {}", version);
-    println!("KATLV: APP Memory");
-    println!("  app_memory_start: {:?}", app_memory_start);
-    println!("  app_memory_len: {:?}", app_memory_len);
-    println!("KATLV: Kernel Binary");
-    println!("  kernel_binary_start: {:?}", kernel_binary_start);
-    println!("  kernel_binary_len: {:?}", kernel_binary_len);
+    kernel_attributes.insert("sentinel".to_owned(), sentinel);
+    kernel_attributes.insert("kernel_version".to_owned(), kernel_version.to_string());
+    kernel_attributes.insert("app_mem_start".to_owned(), app_memory_start.to_string());
+    kernel_attributes.insert("app_mem_len".to_owned(), app_memory_len.to_string());
+    kernel_attributes.insert(
+        "kernel_bin_start".to_owned(),
+        kernel_binary_start.to_string(),
+    );
+    kernel_attributes.insert("kernel_bin_len".to_owned(), kernel_binary_len.to_string());
+
+    // println!("Kernel Attributes");
+    // println!("  Sentinel: {:?}", sentinel);
+    // println!("  Version: {}", kernel_version);
+    // println!("KATLV: APP Memory");
+    // println!("  app_memory_start: {:?}", app_memory_start);
+    // println!("  app_memory_len: {:?}", app_memory_len);
+    // println!("KATLV: Kernel Binary");
+    // println!("  kernel_binary_start: {:?}", kernel_binary_start);
+    // println!("  kernel_binary_len: {:?}", kernel_binary_len);
+    kernel_attributes
 }
 
 // TODO(RARES): will have to use this in board attributes too where needed to debload some of the code

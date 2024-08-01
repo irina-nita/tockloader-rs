@@ -36,15 +36,15 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("list", sub_matches)) => {
             // TODO(NegrilaRares) Result handle
-            match list_probe(sub_matches).await {
+            let _apps_details = match list_probe(sub_matches).await {
                 Ok(apps_details) => apps_details,
                 Err(e) => panic!("While listing apps encountered: {}", e),
             };
         }
         Some(("install", _sub_matches)) => {}
         Some(("info", sub_matches)) => {
-            match info_probe(sub_matches).await {
-                Ok(()) => {}
+            let _attributes = match info_probe(sub_matches).await {
+                Ok(attributes) => attributes,
                 Err(e) => panic!("While listing board info encountered: {}", e),
             };
         }
