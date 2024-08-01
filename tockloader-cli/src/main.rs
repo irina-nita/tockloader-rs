@@ -3,10 +3,12 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 mod cli;
+mod display;
 mod errors;
 mod serial;
 
 use cli::make_cli;
+use display::print_list;
 use errors::TockloaderError;
 use serial::select_probe;
 use tockloader_lib::{info_probe, list_probe, install_app, tab::TabFile};
@@ -38,10 +40,11 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("list", sub_matches)) => {
             // TODO(NegrilaRares) Result handle
-            match list_probe(sub_matches).await {
+            let apps_details = match list_probe(sub_matches).await {
                 Ok(apps_details) => apps_details,
                 Err(e) => panic!("While listing apps encountered: {}", e),
             };
+            print_list(apps_details);
         }
         Some(("install", sub_matches)) => {
             let probe = select_probe();
@@ -62,8 +65,8 @@ async fn run() -> Result<(), TockloaderError> {
             
         }
         Some(("info", sub_matches)) => {
-            match info_probe(sub_matches).await {
-                Ok(()) => {}
+            let _attributes = match info_probe(sub_matches).await {
+                Ok(attributes) => attributes,
                 Err(e) => panic!("While listing board info encountered: {}", e),
             };
         }

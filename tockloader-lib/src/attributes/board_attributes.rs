@@ -9,7 +9,7 @@ use probe_rs::{Core, MemoryInterface};
 pub fn get_bootloader_version(board_core: &mut Core) -> String {
     let address = 0x40E;
 
-    let mut buf = [0u8; 12];
+    let mut buf = [0u8; 8];
 
     let _ = board_core.read_8(address, &mut buf);
 
@@ -20,7 +20,9 @@ pub fn get_bootloader_version(board_core: &mut Core) -> String {
         string.push(n.expect("Error decoding bootloader version"));
     }
 
-    string
+    let string = string.trim_matches(char::from(0));
+
+    string.to_owned()
 }
 
 pub fn get_all_attributes(board_core: &mut Core) -> HashMap<String, String> {

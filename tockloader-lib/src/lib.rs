@@ -1,4 +1,8 @@
-mod board_attributes;
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OXIDOS AUTOMOTIVE 2024.
+
+mod attributes;
 mod board_settings;
 mod errors;
 mod kernel_attributes;
@@ -7,12 +11,13 @@ pub mod tab;
 use std::fs::File;
 
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Read;
 use std::time::Duration;
 
-use board_attributes::{get_all_attributes, get_bootloader_version};
+use attributes::board_attributes::{get_all_attributes, get_bootloader_version};
+use attributes::kernel_attributes::kernel_attributes;
 use board_settings::BoardSettings;
-use kernel_attributes::kernel_attributes;
 
 use clap::ArgMatches;
 use errors::TockloaderError;
@@ -20,9 +25,9 @@ use inquire::Select;
 use probe_rs::probe::list::Lister;
 use probe_rs::probe::DebugProbeInfo;
 use probe_rs::{MemoryInterface, Permissions};
+use tar::Archive;
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
-use tar::Archive;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortType, SerialStream, StopBits};
 use utf8_decode::Decoder;
 use tab::TabFile;
@@ -140,7 +145,9 @@ pub async fn list_probe(
     Ok(apps_details)
 }
 
-pub async fn info_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError> {
+pub async fn info_probe(
+    sub_matches: &ArgMatches,
+) -> Result<HashMap<String, String>, TockloaderError> {
     let lister = Lister::new();
     let probes = lister.list_all();
 
@@ -166,15 +173,17 @@ pub async fn info_probe(sub_matches: &ArgMatches) -> Result<(), TockloaderError>
 
             let bootloader_version = get_bootloader_version(&mut core);
 
-            kernel_attributes(&mut core, &mut attributes);
+            let kernel_attributes = kernel_attributes(&mut core, &mut attributes);
 
             attributes.insert("bootloader_version".to_owned(), bootloader_version);
+
+            attributes.extend(kernel_attributes.into_iter());
 
             println!("{:?}", attributes);
 
             // println!("Bootloader Version: {}", bootloader_version);
 
-            Ok(())
+            Ok(attributes)
         }
         Err(err) => {
             println!("While picking probe:{}", err);
@@ -312,7 +321,7 @@ pub async fn install_app(choice: DebugProbeInfo, board: &String, chip: &String, 
                                     if kernver == kernel_version {
                                         println!("App is compatible with this kernel version!");
                                     } else {
-                                        println! {"App is compatible with this kernel version!"};
+                                        println! {"App is not compatible with this kernel version!"};
                                     }
                                     break;
                                 }
