@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use std::collections::HashMap;
-
 use probe_rs::{Core, MemoryInterface};
 
-pub fn get_bootloader_version(board_core: &mut Core) -> String {
+use super::hardware_attributes::HardwareAttributes;
+
+pub(crate) fn get_bootloader_version(board_core: &mut Core, attributes: &mut HardwareAttributes) {
     let address = 0x40E;
 
     let mut buf = [0u8; 8];
@@ -22,17 +22,15 @@ pub fn get_bootloader_version(board_core: &mut Core) -> String {
 
     let string = string.trim_matches(char::from(0));
 
-    string.to_owned()
+    attributes.bootloader_version = Some(string.to_owned());
 }
 
-pub fn get_all_attributes(board_core: &mut Core) -> HashMap<String, String> {
+pub(crate) fn get_all_attributes(board_core: &mut Core, attributes: &mut HardwareAttributes) {
     let address = 0x600;
     let mut buf = [0u8; 64 * 16];
     let _ = board_core.read(address, &mut buf);
 
     let mut data = buf.chunks(64);
-
-    let mut attributes: HashMap<String, String> = HashMap::new();
 
     for _ in 0..data.len() {
         let step = match data.next() {
@@ -48,10 +46,16 @@ pub fn get_all_attributes(board_core: &mut Core) -> HashMap<String, String> {
 
         let step_hashmap = step_option.unwrap();
 
-        attributes.insert(step_hashmap[0].to_string(), step_hashmap[1].to_string());
+        if step_hashmap[0] == "arch" {
+            attributes.arch = Some(step_hashmap[1].to_string());
+        } else if step_hashmap[0] == "appaddr" {
+            attributes.appaddr = Some(step_hashmap[1].to_string());
+        } else if step_hashmap[0] == "board" {
+            attributes.board = Some(step_hashmap[1].to_string());
+        } else if step_hashmap[0] == "boothash" {
+            attributes.boothash = Some(step_hashmap[1].to_string());
+        }
     }
-
-    attributes
 }
 
 fn decode_attribute(step: &[u8]) -> Option<[String; 2]> {

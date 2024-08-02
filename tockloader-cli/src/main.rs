@@ -8,10 +8,10 @@ mod errors;
 mod serial;
 
 use cli::make_cli;
-use display::print_list;
+use display::{print_info, print_list};
 use errors::TockloaderError;
 use serial::select_probe;
-use tockloader_lib::{info_probe, list_probe, install_app, tab::TabFile};
+use tockloader_lib::{info_probe, install_app, list_probe, tab::TabFile};
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -40,11 +40,11 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("list", sub_matches)) => {
             // TODO(NegrilaRares) Result handle
-            let apps_details = match list_probe(sub_matches).await {
+            let mut apps_details = match list_probe(sub_matches).await {
                 Ok(apps_details) => apps_details,
                 Err(e) => panic!("While listing apps encountered: {}", e),
             };
-            print_list(apps_details);
+            print_list(&mut apps_details, false).await;
         }
         Some(("install", sub_matches)) => {
             let probe = select_probe();
@@ -52,23 +52,30 @@ async fn run() -> Result<(), TockloaderError> {
             match probe {
                 Ok(probe) => {
                     install_app(
-                        probe, 
-                        sub_matches.get_one::<String>("board").unwrap(), 
-                        sub_matches.get_one::<String>("chip").unwrap(), 
+                        probe,
+                        sub_matches.get_one::<String>("board").unwrap(),
+                        sub_matches.get_one::<String>("chip").unwrap(),
                         sub_matches.get_one::<usize>("core").unwrap(),
                         sub_matches.get_one::<String>("kernver").unwrap(),
                         tab_file,
-                    ).await.unwrap();
-                },
-                Err(err) => println!("{}", err),        
+                    )
+                    .await
+                    .unwrap();
+                }
+                Err(err) => println!("{}", err),
             }
-            
         }
         Some(("info", sub_matches)) => {
-            let _attributes = match info_probe(sub_matches).await {
+            let mut apps_details = match list_probe(sub_matches).await {
+                Ok(apps_details) => apps_details,
+                Err(e) => panic!("While listing apps encountered: {}", e),
+            };
+            let mut attributes = match info_probe(sub_matches).await {
                 Ok(attributes) => attributes,
                 Err(e) => panic!("While listing board info encountered: {}", e),
             };
+            print_list(&mut apps_details, true).await;
+            print_info(&mut attributes).await;
         }
 
         // If only the "--debug" flag is set, then this branch is executed

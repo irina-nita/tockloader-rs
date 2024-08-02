@@ -24,8 +24,8 @@ impl ProbeSession {
     ) -> Self {
         ProbeSession {
             probe_info,
-            board_settings: board_settings,
-            core_index: core_index,
+            board_settings,
+            core_index,
             probe: None,
             session: None,
         }

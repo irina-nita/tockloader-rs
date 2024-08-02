@@ -2,5 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-pub mod board_attributes;
-pub mod kernel_attributes;
+pub mod app_attributes;
+pub mod get_board_attributes;
+pub mod get_kernel_attributes;
+pub mod hardware_attributes;
