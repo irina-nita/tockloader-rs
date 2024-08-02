@@ -42,10 +42,13 @@ async fn run() -> Result<(), TockloaderError> {
             let probe = select_probe();
             match probe {
                 Ok(probe) => {
-                    let mut apps_details = match list_probe(sub_matches).await {
-                        Ok(apps_details) => apps_details,
-                        Err(e) => panic!("While listing apps encountered: {}", e),
-                    };
+                    let mut apps_details = list_probe(
+                        probe,
+                        sub_matches.get_one::<String>("board").unwrap(),
+                        sub_matches.get_one::<String>("chip").unwrap(),
+                        sub_matches.get_one::<usize>("core").unwrap(),
+                    )
+                    .await;
                     print_list(&mut apps_details, false).await;
                 }
                 Err(err) => println!("{}", err),
@@ -70,16 +73,28 @@ async fn run() -> Result<(), TockloaderError> {
             }
         }
         Some(("info", sub_matches)) => {
-            let mut apps_details = match list_probe(sub_matches).await {
-                Ok(apps_details) => apps_details,
-                Err(e) => panic!("While listing apps encountered: {}", e),
-            };
-            let mut attributes = match info_probe(sub_matches).await {
-                Ok(attributes) => attributes,
-                Err(e) => panic!("While listing board info encountered: {}", e),
-            };
-            print_list(&mut apps_details, true).await;
-            print_info(&mut attributes).await;
+            let probe = select_probe();
+            match probe {
+                Ok(probe) => {
+                    let mut apps_details = list_probe(
+                        probe.clone(),
+                        sub_matches.get_one::<String>("board").unwrap(),
+                        sub_matches.get_one::<String>("chip").unwrap(),
+                        sub_matches.get_one::<usize>("core").unwrap(),
+                    )
+                    .await;
+                    let mut attributes = info_probe(
+                        probe,
+                        sub_matches.get_one::<String>("board").unwrap(),
+                        sub_matches.get_one::<String>("chip").unwrap(),
+                        sub_matches.get_one::<usize>("core").unwrap(),
+                    )
+                    .await;
+                    print_list(&mut apps_details, true).await;
+                    print_info(&mut attributes).await;
+                }
+                Err(err) => println!("{}", err),
+            }
         }
 
         // If only the "--debug" flag is set, then this branch is executed
