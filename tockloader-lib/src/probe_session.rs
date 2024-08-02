@@ -9,36 +9,22 @@ use std::time::Duration;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortType, SerialStream, StopBits};
 
 pub struct ProbeSession {
-    pub probe_info: DebugProbeInfo,
-    pub board_settings: BoardSettings,
-    pub core_index: usize,
-    pub probe: Option<Probe>,
     pub session: Option<Session>,
+    pub address: Option<u64>,
 }
 
 impl ProbeSession {
-    pub fn new(
-        probe_info: DebugProbeInfo,
-        board_settings: BoardSettings,
-        core_index: usize,
-    ) -> Self {
-        ProbeSession {
-            probe_info,
-            board_settings,
-            core_index,
-            probe: None,
-            session: None,
-        }
-    }
+    pub fn new(probe_info: DebugProbeInfo, board: &String, chip: &str) -> ProbeSession {
+        let board_settings = BoardSettings::new(board.clone(), chip.to_owned());
+        let address = board_settings.start_address;
+        let serial_nr = probe_info.clone().serial_number.unwrap();
+        let mut probe = Some(probe_info.open().unwrap());
+        let mut session = None;
 
-    pub fn open(&mut self) {
-        let serial_nr = self.probe_info.clone().serial_number.unwrap();
-        self.probe = Some(self.probe_info.open().unwrap());
-        // Take the Probe out of the Option, leaving None in its place
-        if let Some(probe) = self.probe.take() {
-            self.session = Some(
+        if let Some(probe) = probe.take() {
+            session = Some(
                 probe
-                    .attach(self.board_settings.chip.clone(), Permissions::default())
+                    .attach(board_settings.chip.clone(), Permissions::default())
                     .unwrap(),
             );
         }
@@ -65,14 +51,14 @@ impl ProbeSession {
                 }
             }
         }
+        let probe_session = session.expect("Couldnt create a session");
+        ProbeSession {
+            session: Some(probe_session),
+            address: Some(address),
+        }
     }
 
-    pub fn get_core(&mut self) -> Core {
-        return self
-            .session
-            .as_mut()
-            .unwrap()
-            .core(self.core_index)
-            .unwrap();
+    pub fn get_core(&mut self, core_index: usize) -> Core {
+        return self.session.as_mut().unwrap().core(core_index).unwrap();
     }
 }

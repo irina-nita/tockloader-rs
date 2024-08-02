@@ -188,14 +188,12 @@ pub async fn install_app(
     core_index: &usize,
     tab_file: TabFile,
 ) -> Result<(), TockloaderError> {
-    // Get hard-coded start_address
-    let board_settings = BoardSettings::new(board.clone(), chip.to_owned());
-    let mut address = board_settings.start_address;
-
     // Open port and configure it
-    let mut probe_session = ProbeSession::new(choice, board_settings, *core_index);
-    probe_session.open();
-    let mut core = probe_session.get_core();
+    let mut probe_session = ProbeSession::new(choice, board, chip);
+    let mut address = probe_session
+        .address
+        .expect("address could not be retreved from ProbeSession.");
+    let mut core = probe_session.get_core(*core_index);
 
     // Jump through the linked list of apps to check the address to install the app
     loop {

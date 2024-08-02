@@ -39,12 +39,17 @@ async fn run() -> Result<(), TockloaderError> {
             };
         }
         Some(("list", sub_matches)) => {
-            // TODO(NegrilaRares) Result handle
-            let mut apps_details = match list_probe(sub_matches).await {
-                Ok(apps_details) => apps_details,
-                Err(e) => panic!("While listing apps encountered: {}", e),
-            };
-            print_list(&mut apps_details, false).await;
+            let probe = select_probe();
+            match probe {
+                Ok(probe) => {
+                    let mut apps_details = match list_probe(sub_matches).await {
+                        Ok(apps_details) => apps_details,
+                        Err(e) => panic!("While listing apps encountered: {}", e),
+                    };
+                    print_list(&mut apps_details, false).await;
+                }
+                Err(err) => println!("{}", err),
+            }
         }
         Some(("install", sub_matches)) => {
             let probe = select_probe();
