@@ -203,10 +203,12 @@ pub async fn install_app(
     let board_settings = BoardSettings::new(board.clone(), chip.clone());
     let mut address = board_settings.start_address;
 
+    // Open port and configure it
     let mut probe_session = ProbeSession::new(choice, board_settings, *core_index);
     probe_session.open();
     let mut core = probe_session.get_core();
-    // Jump through the linked list of apps
+
+    // Jump through the linked list of apps to check the address to install the app
     loop {
         // Read a block of 200 8-bit words
         let mut buff = vec![0u8; 200];
