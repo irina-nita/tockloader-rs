@@ -23,7 +23,7 @@ pub async fn print_list(app_details: &mut [AppAttributes], info: bool) {
 
                 println!(
                     " \x1b[1;32m Enabled:             {}",
-                    temp_data.enabled.unwrap()
+                    temp_data.flag_enabled.unwrap()
                 );
 
                 println!(
@@ -48,7 +48,7 @@ pub async fn print_list(app_details: &mut [AppAttributes], info: bool) {
 
                 println!(
                     " \x1b[1;32m Enabled:             {}",
-                    temp_data.enabled.unwrap()
+                    temp_data.flag_enabled.unwrap()
                 );
 
                 println!(

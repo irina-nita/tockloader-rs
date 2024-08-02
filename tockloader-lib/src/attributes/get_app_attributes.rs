@@ -41,7 +41,7 @@ pub(crate) fn get_apps_data(board_core: &mut Core) -> Vec<AppAttributes> {
         let header = parse_tbf_header(&buff[0..header_size as usize], ver);
         match header {
             Ok(header) => {
-                details.enabled = Some(header.enabled());
+                details.flag_enabled = Some(header.enabled());
                 details.minumum_ram_size = Some(header.get_minimum_app_ram_size());
                 details.name = Some(
                     header
@@ -55,17 +55,6 @@ pub(crate) fn get_apps_data(board_core: &mut Core) -> Vec<AppAttributes> {
                         .get_kernel_version()
                         .expect("Could not get kernel version."),
                 );
-                // details.kernel_version = Some(format!(
-                //     "{}.{}",
-                //     header
-                //         .get_kernel_version()
-                //         .expect("Kernel version not found.")
-                //         .0,
-                //     header
-                //         .get_kernel_version()
-                //         .expect("Kernel version not found.")
-                //         .1
-                // ));
             }
             // TODO(MicuAna): refactor when reworking errors
             Err(TbfParseError::ChecksumMismatch(provided_checksum, calculated_checksum)) => {
@@ -109,3 +98,15 @@ pub(crate) fn get_start_address(board_core: &mut Core, mut address: u64) -> Opti
     }
     Some(address)
 }
+
+// details.kernel_version = Some(format!(
+//     "{}.{}",
+//     header
+//         .get_kernel_version()
+//         .expect("Kernel version not found.")
+//         .0,
+//     header
+//         .get_kernel_version()
+//         .expect("Kernel version not found.")
+//         .1
+// ));
