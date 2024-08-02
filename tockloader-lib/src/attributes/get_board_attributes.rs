@@ -25,14 +25,14 @@ pub(crate) fn get_bootloader_version(board_core: &mut Core, attributes: &mut Har
     attributes.bootloader_version = Some(string.to_owned());
 }
 
-pub(crate) fn get_all_attributes(board_core: &mut Core, attributes: &mut HardwareAttributes) {
+pub(crate) fn get_board_attributes(board_core: &mut Core, attributes: &mut HardwareAttributes) {
     let address = 0x600;
     let mut buf = [0u8; 64 * 16];
     let _ = board_core.read(address, &mut buf);
 
     let mut data = buf.chunks(64);
 
-    for _ in 0..data.len() {
+    for index_data in 0..data.len() {
         let step = match data.next() {
             Some(data) => data,
             None => break,
@@ -46,14 +46,20 @@ pub(crate) fn get_all_attributes(board_core: &mut Core, attributes: &mut Hardwar
 
         let step_hashmap = step_option.unwrap();
 
-        if step_hashmap[0] == "arch" {
-            attributes.arch = Some(step_hashmap[1].to_string());
-        } else if step_hashmap[0] == "appaddr" {
-            attributes.appaddr = Some(step_hashmap[1].to_string());
-        } else if step_hashmap[0] == "board" {
-            attributes.board = Some(step_hashmap[1].to_string());
-        } else if step_hashmap[0] == "boothash" {
-            attributes.boothash = Some(step_hashmap[1].to_string());
+        match index_data {
+            0 => {
+                attributes.board = Some(step_hashmap[1].to_string());
+            }
+            1 => {
+                attributes.arch = Some(step_hashmap[1].to_string());
+            }
+            2 => {
+                attributes.appaddr = Some(step_hashmap[1].to_string());
+            }
+            3 => {
+                attributes.boothash = Some(step_hashmap[1].to_string());
+            }
+            _ => panic!("Board data not found!"),
         }
     }
 }
@@ -85,4 +91,35 @@ fn decode_attribute(step: &[u8]) -> Option<[String; 2]> {
 
     value = value.trim_end_matches('\0').to_string();
     Some([key, value])
+}
+
+pub(crate) fn get_appaddr(board_core: &mut Core) -> Option<u64> {
+    let address = 0x600;
+    let mut buf = [0u8; 64 * 16];
+    let _ = board_core.read(address, &mut buf);
+
+    let mut data = buf.chunks(64);
+
+    for _ in 0..data.len() {
+        let step = match data.next() {
+            Some(data) => data,
+            None => break,
+        };
+
+        let step_option = decode_attribute(step);
+
+        if step_option.is_none() {
+            continue;
+        }
+
+        let step_hashmap = step_option.unwrap();
+
+        if step_hashmap[0] == "appaddr" {
+            return Some(
+                u64::from_str_radix(step_hashmap[1].to_string().trim_start_matches("0x"), 16)
+                    .unwrap(),
+            );
+        }
+    }
+    None
 }

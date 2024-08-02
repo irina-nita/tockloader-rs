@@ -9,8 +9,9 @@ pub mod probe_session;
 pub mod tab;
 
 use attributes::app_attributes::AppAttributes;
-use attributes::get_board_attributes::{get_all_attributes, get_bootloader_version};
-use attributes::get_kernel_attributes::{get_kernel_version, kernel_attributes};
+use attributes::get_app_attributes::get_apps_data;
+use attributes::get_board_attributes::{get_appaddr, get_board_attributes, get_bootloader_version};
+use attributes::get_kernel_attributes::{get_kernel_attributes, get_kernel_version};
 use attributes::hardware_attributes::HardwareAttributes;
 
 use errors::TockloaderError;
@@ -19,7 +20,6 @@ use probe_rs::MemoryInterface;
 use probe_session::ProbeSession;
 use tab::TabFile;
 use tbf_parser::parse::*;
-use tbf_parser::types::*;
 
 pub async fn list_probe(
     choice: DebugProbeInfo,
@@ -28,85 +28,9 @@ pub async fn list_probe(
     core_index: &usize,
 ) -> Vec<AppAttributes> {
     let mut probe_session = ProbeSession::new(choice, board, chip);
-    let mut address = probe_session
-        .address
-        .expect("address could not be retreved from ProbeSession.");
     let mut core = probe_session.get_core(*core_index);
 
-    // Jump through the linked list of apps
-    let mut apps_counter = 0;
-    let mut apps_details: Vec<AppAttributes> = vec![];
-    loop {
-        let mut temp_details: AppAttributes = AppAttributes::new();
-
-        // Read a block of 200 8-bit words
-        let mut buff = vec![0u8; 200];
-        match core.read(address, &mut buff) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error reading memory: {:?}", e);
-                break;
-            }
-        }
-
-        let (ver, header_size, total_size) =
-            match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
-                Ok((ver, header_size, total_size)) if header_size != 0 => {
-                    temp_details.tbf_version = Some(ver);
-                    temp_details.header_size = Some(header_size);
-                    temp_details.total_size = Some(total_size);
-                    (ver, header_size, total_size)
-                }
-                _ => break, // No more apps
-            };
-
-        let header = parse_tbf_header(&buff[0..header_size as usize], ver);
-        match header {
-            Ok(header) => {
-                temp_details.enabled = Some(header.enabled());
-                temp_details.minumum_ram_size = Some(header.get_minimum_app_ram_size());
-                temp_details.name = Some(
-                    header
-                        .get_package_name()
-                        .expect("Package name not found.")
-                        .to_string(),
-                );
-
-                temp_details.kernel_version = Some(
-                    header
-                        .get_kernel_version()
-                        .expect("Could not get kernel version."),
-                );
-                // temp_details.kernel_version = Some(format!(
-                //     "{}.{}",
-                //     header
-                //         .get_kernel_version()
-                //         .expect("Kernel version not found.")
-                //         .0,
-                //     header
-                //         .get_kernel_version()
-                //         .expect("Kernel version not found.")
-                //         .1
-                // ));
-            }
-            // TODO(MicuAna): refactor when reworking errors
-            Err(TbfParseError::ChecksumMismatch(provided_checksum, calculated_checksum)) => {
-                println!(
-                    "Checksum mismatch: provided = {}, calculated = {}",
-                    provided_checksum, calculated_checksum
-                );
-                break;
-            }
-            Err(e) => {
-                println!("Failed to parse TBF header: {:?}", e);
-                break;
-            }
-        }
-        apps_details.insert(apps_counter, temp_details);
-        apps_counter += 1;
-        address += total_size as u64;
-    }
-    apps_details
+    get_apps_data(&mut core)
 }
 
 pub async fn info_probe(
@@ -114,20 +38,22 @@ pub async fn info_probe(
     board: &str,
     chip: &str,
     core_index: &usize,
-) -> HardwareAttributes {
+) -> (HardwareAttributes, Vec<AppAttributes>) {
     let mut probe_session = ProbeSession::new(choice, board, chip);
 
     let mut core = probe_session.get_core(*core_index);
 
     let mut attributes: HardwareAttributes = HardwareAttributes::new();
 
-    get_all_attributes(&mut core, &mut attributes);
+    get_board_attributes(&mut core, &mut attributes);
 
     get_bootloader_version(&mut core, &mut attributes);
 
-    kernel_attributes(&mut core, &mut attributes);
+    get_kernel_attributes(&mut core, &mut attributes);
 
-    attributes
+    let apps_details = get_apps_data(&mut core);
+
+    (attributes, apps_details)
 }
 
 pub async fn install_app(
@@ -139,10 +65,8 @@ pub async fn install_app(
 ) -> Result<(), TockloaderError> {
     // Open port and configure it
     let mut probe_session = ProbeSession::new(choice, board, chip);
-    let mut address = probe_session
-        .address
-        .expect("address could not be retreved from ProbeSession.");
     let mut core = probe_session.get_core(*core_index);
+    let mut address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
 
     // Jump through the linked list of apps to check the address to install the app
     loop {

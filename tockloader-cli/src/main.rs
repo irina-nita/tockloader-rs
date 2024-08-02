@@ -76,13 +76,6 @@ async fn run() -> Result<(), TockloaderError> {
             let probe = select_probe();
             match probe {
                 Ok(probe) => {
-                    let mut apps_details = list_probe(
-                        probe.clone(),
-                        sub_matches.get_one::<String>("board").unwrap(),
-                        sub_matches.get_one::<String>("chip").unwrap(),
-                        sub_matches.get_one::<usize>("core").unwrap(),
-                    )
-                    .await;
                     let mut attributes = info_probe(
                         probe,
                         sub_matches.get_one::<String>("board").unwrap(),
@@ -90,8 +83,8 @@ async fn run() -> Result<(), TockloaderError> {
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
                     .await;
-                    print_list(&mut apps_details, true).await;
-                    print_info(&mut attributes).await;
+                    print_list(&mut attributes.1, true).await;
+                    print_info(&mut attributes.0).await;
                 }
                 Err(err) => println!("{}", err),
             }

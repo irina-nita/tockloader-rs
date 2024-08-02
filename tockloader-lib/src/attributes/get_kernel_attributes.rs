@@ -7,7 +7,7 @@ use probe_rs::{Core, MemoryInterface};
 
 use super::hardware_attributes::HardwareAttributes;
 
-pub(crate) fn kernel_attributes(board_core: &mut Core, attributes: &mut HardwareAttributes) {
+pub(crate) fn get_kernel_attributes(board_core: &mut Core, attributes: &mut HardwareAttributes) {
     let address_apps = i32::from_str_radix(
         attributes
             .appaddr
@@ -51,7 +51,6 @@ pub(crate) fn bytes_to_string(raw: &[u8]) -> String {
     string
 }
 
-#[allow(dead_code)]
 pub(crate) fn get_kernel_version(board_core: &mut Core) -> u8 {
     let addr = 0x3FFFC;
     let mut version = [0u8; 1];
