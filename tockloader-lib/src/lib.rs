@@ -8,9 +8,6 @@ mod errors;
 pub mod probe_session;
 pub mod tab;
 
-use std::fs::File;
-use std::io::Read;
-
 use attributes::app_attributes::AppAttributes;
 use attributes::get_board_attributes::{get_all_attributes, get_bootloader_version};
 use attributes::get_kernel_attributes::{get_kernel_version, kernel_attributes};
@@ -25,7 +22,6 @@ use probe_rs::probe::DebugProbeInfo;
 use probe_rs::{MemoryInterface, Permissions};
 use probe_session::ProbeSession;
 use tab::TabFile;
-use tar::Archive;
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
 
@@ -215,55 +211,16 @@ pub async fn install_app(
         address += whole_len as u64;
     }
 
-    let mut archive = Archive::new(File::open(tab_file.path).unwrap());
-    for entry in archive.entries().unwrap() {
-        match entry {
-            Ok(mut entry) => {
-                if let Ok(path) = entry.path() {
-                    if let Some(file_name) = path.file_name() {
-                        if file_name == "metadata.toml" {
-                            let mut buf = String::new();
-                            entry.read_to_string(&mut buf).unwrap();
-                            let replaced = buf.replace("\"", "");
-                            let parts = replaced.split("\n");
-                            let collection = parts.collect::<Vec<&str>>();
-
-                            for item in collection {
-                                if item.contains("only-for-boards") {
-                                    let columns = item.split("=");
-                                    let elem = columns.collect::<Vec<&str>>();
-                                    let all_boards = elem[1].split(", ");
-                                    let boards = all_boards.collect::<Vec<&str>>();
-                                    for bd in boards {
-                                        if bd == board {
-                                            println!("App is compatible with board!");
-                                            break;
-                                        }
-                                    }
-                                    println! {"App is not compatible with board!"};
-                                    break;
-                                }
-                                if item.contains("minimum-tock-kernel-version") {
-                                    let columns = item.split("=");
-                                    let elem = columns.collect::<Vec<&str>>();
-                                    let kernver = elem[1].trim().parse::<f32>().unwrap();
-                                    if kernver == get_kernel_version(&mut core) as f32 {
-                                        println!("App is compatible with this kernel version!");
-                                    } else {
-                                        println! {"App is not compatible with this kernel version!"};
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        eprintln!("Failed to get path");
-                    }
-                }
-            }
-            Err(e) => eprintln!("Failed to get entry: {}", e),
-        }
+    if tab_file.is_compatible_with_board(board) {
+        println!("Specified tab is compatible with board.");
+    } else {
+        println!("Specified tab is not compatible with board.");
     }
 
+    if tab_file.is_compatible_with_kernel_verison(get_kernel_version(&mut core) as f32) {
+        println!("Specified tab is compatible with your kernel version.");
+    } else {
+        println!("Specified tab is not compatible with your kernel version.");
+    }
     Ok(())
 }
