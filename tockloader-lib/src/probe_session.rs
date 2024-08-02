@@ -3,7 +3,7 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 use crate::board_settings::BoardSettings;
-use probe_rs::probe::{DebugProbeInfo, Probe};
+use probe_rs::probe::DebugProbeInfo;
 use probe_rs::{Core, Permissions, Session};
 use std::time::Duration;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortType, SerialStream, StopBits};
@@ -14,8 +14,8 @@ pub struct ProbeSession {
 }
 
 impl ProbeSession {
-    pub fn new(probe_info: DebugProbeInfo, board: &String, chip: &str) -> ProbeSession {
-        let board_settings = BoardSettings::new(board.clone(), chip.to_owned());
+    pub fn new(probe_info: DebugProbeInfo, board: &str, chip: &str) -> ProbeSession {
+        let board_settings = BoardSettings::new(board.to_owned(), chip.to_owned());
         let address = board_settings.start_address;
         let serial_nr = probe_info.clone().serial_number.unwrap();
         let mut probe = Some(probe_info.open().unwrap());
