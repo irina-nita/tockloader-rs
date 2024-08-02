@@ -6,6 +6,8 @@ use std::{fs::File, io::Read};
 
 use tar::Archive;
 
+use crate::errors::TockloaderError;
+
 pub struct TabFile {
     pub path: String,
 }
@@ -16,7 +18,10 @@ impl TabFile {
     }
 
     // TODO(MicuAna): add error handling
-    pub fn is_compatible_with_kernel_verison(&self, kernel_version: f32) -> bool {
+    pub fn is_compatible_with_kernel_verison(
+        &self,
+        kernel_version: f32,
+    ) -> Result<bool, TockloaderError> {
         let mut value = false;
         let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
         for entry in archive.entries().unwrap() {
@@ -43,7 +48,7 @@ impl TabFile {
                                 }
                             }
                         } else {
-                            eprintln!("Failed to get path");
+                            println!("Failed to get path");
                         }
                     }
                 }
@@ -52,11 +57,11 @@ impl TabFile {
                 }
             }
         }
-        value
+        Ok(value)
     }
 
     // TODO(MicuAna): add error handling
-    pub fn is_compatible_with_board(&self, board: &String) -> bool {
+    pub fn is_compatible_with_board(&self, board: &String) -> Result<bool, TockloaderError> {
         let mut value = false;
         let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
         for entry in archive.entries().unwrap() {
@@ -95,6 +100,6 @@ impl TabFile {
                 }
             }
         }
-        value
+        Ok(value)
     }
 }
