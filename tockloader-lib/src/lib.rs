@@ -88,16 +88,26 @@ pub async fn install_app(
         address += whole_len as u64;
     }
 
-    if tab_file.is_compatible_with_board(board) {
-        println!("Specified tab is compatible with board.");
-    } else {
-        println!("Specified tab is not compatible with board.");
+    match tab_file.is_compatible_with_board(board) {
+        Ok(value) => {
+            if value {
+                println!("Specified tab is compatible with board.");
+            } else {
+                println!("Specified tab is not compatible with board.");
+            }
+        }
+        Err(e) => println!("Something went wrong: {:?}", e),
     }
 
-    if tab_file.is_compatible_with_kernel_verison(get_kernel_version(&mut core) as f32) {
-        println!("Specified tab is compatible with your kernel version.");
-    } else {
-        println!("Specified tab is not compatible with your kernel version.");
+    match tab_file.is_compatible_with_kernel_verison(get_kernel_version(&mut core) as f32) {
+        Ok(value) => {
+            if value {
+                println!("Specified tab is compatible with your kernel version.");
+            } else {
+                println!("Specified tab is not compatible with your kernel version.");
+            }
+        }
+        Err(e) => println!("Something went wrong: {:?}", e),
     }
     Ok(())
 }
