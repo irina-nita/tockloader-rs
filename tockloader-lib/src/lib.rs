@@ -13,7 +13,7 @@ use std::io::Read;
 
 use attributes::app_attributes::AppAttributes;
 use attributes::get_board_attributes::{get_all_attributes, get_bootloader_version};
-use attributes::get_kernel_attributes::kernel_attributes;
+use attributes::get_kernel_attributes::{get_kernel_version, kernel_attributes};
 use attributes::hardware_attributes::HardwareAttributes;
 use board_settings::BoardSettings;
 
@@ -28,7 +28,6 @@ use tab::TabFile;
 use tar::Archive;
 use tbf_parser::parse::*;
 use tbf_parser::types::*;
-use utf8_decode::Decoder;
 
 pub async fn list_probe(sub_matches: &ArgMatches) -> Result<Vec<AppAttributes>, TockloaderError> {
     let lister = Lister::new();
@@ -187,7 +186,6 @@ pub async fn install_app(
     board: &String,
     chip: &str,
     core_index: &usize,
-    kernel_version: &String, /*this is temporary*/
     tab_file: TabFile,
 ) -> Result<(), TockloaderError> {
     // Get hard-coded start_address
@@ -217,37 +215,6 @@ pub async fn install_app(
             };
 
         address += whole_len as u64;
-    }
-
-    let mut bytes = vec![0u8; 1024];
-    match core.read(0x600, &mut bytes) {
-        Ok(_) => {
-            let mut i: u16 = 0;
-            while i < 1024 {
-                let decoder = Decoder::new(bytes[i as usize..(i + 8) as usize].iter().cloned());
-                let mut key = String::new();
-                for c in decoder {
-                    key.push(c?);
-                }
-                println!("{}", key);
-                let vlen = bytes[(i + 8) as usize];
-                let index: u16 = vlen as u16 + 9;
-                let decoder = Decoder::new(
-                    bytes[(i + 9) as usize..(i + index) as usize]
-                        .iter()
-                        .cloned(),
-                );
-                let mut value = String::new();
-                for c in decoder {
-                    value.push(c?);
-                }
-                println!("{}", value);
-                i += 64;
-            }
-        }
-        Err(e) => {
-            println!("Error reading memory: {:?}", e);
-        }
     }
 
     let mut archive = Archive::new(File::open(tab_file.path).unwrap());
@@ -281,8 +248,8 @@ pub async fn install_app(
                                 if item.contains("minimum-tock-kernel-version") {
                                     let columns = item.split("=");
                                     let elem = columns.collect::<Vec<&str>>();
-                                    let kernver = elem[1];
-                                    if kernver == kernel_version {
+                                    let kernver = elem[1].trim().parse::<f32>().unwrap();
+                                    if kernver == get_kernel_version(&mut core) as f32 {
                                         println!("App is compatible with this kernel version!");
                                     } else {
                                         println! {"App is not compatible with this kernel version!"};

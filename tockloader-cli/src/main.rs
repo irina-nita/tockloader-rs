@@ -56,7 +56,6 @@ async fn run() -> Result<(), TockloaderError> {
                         sub_matches.get_one::<String>("board").unwrap(),
                         sub_matches.get_one::<String>("chip").unwrap(),
                         sub_matches.get_one::<usize>("core").unwrap(),
-                        sub_matches.get_one::<String>("kernver").unwrap(),
                         tab_file,
                     )
                     .await
