@@ -9,17 +9,15 @@ pub mod probe_session;
 pub mod tab;
 
 use attributes::app_attributes::AppAttributes;
-use attributes::get_app_attributes::get_apps_data;
+use attributes::get_app_attributes::{get_apps_data, get_start_address};
 use attributes::get_board_attributes::{get_appaddr, get_board_attributes, get_bootloader_version};
 use attributes::get_kernel_attributes::{get_kernel_attributes, get_kernel_version};
 use attributes::hardware_attributes::HardwareAttributes;
 
 use errors::TockloaderError;
 use probe_rs::probe::DebugProbeInfo;
-use probe_rs::MemoryInterface;
 use probe_session::ProbeSession;
 use tab::TabFile;
-use tbf_parser::parse::*;
 
 pub async fn list_probe(
     choice: DebugProbeInfo,
@@ -66,28 +64,12 @@ pub async fn install_app(
     // Open port and configure it
     let mut probe_session = ProbeSession::new(choice, board, chip);
     let mut core = probe_session.get_core(*core_index);
-    let mut address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
+    let address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
 
     // Jump through the linked list of apps to check the address to install the app
-    loop {
-        // Read a block of 200 8-bit words
-        let mut buff = vec![0u8; 200];
-        match core.read(address, &mut buff) {
-            Ok(_) => {}
-            Err(e) => {
-                println!("Error reading memory: {:?}", e);
-                break;
-            }
-        }
-        let (_ver, _header_len, whole_len) =
-            match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
-                Ok((ver, header_len, whole_len)) if header_len != 0 => (ver, header_len, whole_len),
-                _ => break, // No more apps
-            };
+    let _start_address = get_start_address(&mut core, address);
 
-        address += whole_len as u64;
-    }
-
+    // Verify if the specified app is compatible with board
     match tab_file.is_compatible_with_board(board) {
         Ok(value) => {
             if value {
@@ -99,6 +81,7 @@ pub async fn install_app(
         Err(e) => println!("Something went wrong: {:?}", e),
     }
 
+    // Verify if the specified app is compatible with kernel version
     match tab_file.is_compatible_with_kernel_verison(get_kernel_version(&mut core) as f32) {
         Ok(value) => {
             if value {

@@ -86,3 +86,26 @@ pub(crate) fn get_apps_data(board_core: &mut Core) -> Vec<AppAttributes> {
     }
     apps_details
 }
+
+// TODO(MicuAna): add error handling
+pub(crate) fn get_start_address(board_core: &mut Core, mut address: u64) -> Option<u64> {
+    loop {
+        // Read a block of 200 8-bit words
+        let mut buff = vec![0u8; 200];
+        match board_core.read(address, &mut buff) {
+            Ok(_) => {}
+            Err(e) => {
+                println!("Error reading memory: {:?}", e);
+                break;
+            }
+        }
+        let (_ver, _header_len, whole_len) =
+            match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
+                Ok((ver, header_len, whole_len)) if header_len != 0 => (ver, header_len, whole_len),
+                _ => break, // No more apps
+            };
+
+        address += whole_len as u64;
+    }
+    Some(address)
+}
