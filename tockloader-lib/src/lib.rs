@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-mod attributes;
+pub mod attributes;
 mod board_settings;
 mod errors;
 pub mod probe_session;
 pub mod tab;
 
 use std::fs::File;
-
-use std::collections::HashMap;
 use std::io::Read;
 
-use attributes::board_attributes::{get_all_attributes, get_bootloader_version};
-use attributes::kernel_attributes::kernel_attributes;
+use attributes::app_attributes::AppAttributes;
+use attributes::get_board_attributes::{get_all_attributes, get_bootloader_version};
+use attributes::get_kernel_attributes::kernel_attributes;
+use attributes::hardware_attributes::HardwareAttributes;
 use board_settings::BoardSettings;
 
 use clap::ArgMatches;
@@ -30,16 +30,14 @@ use tbf_parser::parse::*;
 use tbf_parser::types::*;
 use utf8_decode::Decoder;
 
-pub async fn list_probe(
-    sub_matches: &ArgMatches,
-) -> Result<Vec<HashMap<String, String>>, TockloaderError> {
+pub async fn list_probe(sub_matches: &ArgMatches) -> Result<Vec<AppAttributes>, TockloaderError> {
     let lister = Lister::new();
     let probes = lister.list_all();
     println!("Probes: {:?}\n", probes);
 
     let ans = Select::new("Which probe do you want to use?", probes).prompt();
 
-    let mut apps_details: Vec<HashMap<String, String>> = vec![];
+    let mut apps_details: Vec<AppAttributes> = vec![];
 
     match ans {
         Ok(choice) => {
@@ -63,7 +61,7 @@ pub async fn list_probe(
             // Jump through the linked list of apps
             let mut apps_counter = 0;
             loop {
-                let mut temp_details: HashMap<String, String> = HashMap::new();
+                let mut temp_details: AppAttributes = AppAttributes::new();
 
                 // Read a block of 200 8-bit words
                 let mut buff = vec![0u8; 200];
@@ -78,9 +76,9 @@ pub async fn list_probe(
                 let (ver, header_size, total_size) =
                     match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
                         Ok((ver, header_size, total_size)) if header_size != 0 => {
-                            temp_details.insert("version".to_owned(), ver.to_string());
-                            temp_details.insert("header_size".to_owned(), header_size.to_string());
-                            temp_details.insert("total_size".to_owned(), total_size.to_string());
+                            temp_details.tbf_version = Some(ver);
+                            temp_details.header_size = Some(header_size);
+                            temp_details.total_size = Some(total_size);
                             (ver, header_size, total_size)
                         }
                         _ => break, // No more apps
@@ -89,32 +87,31 @@ pub async fn list_probe(
                 let header = parse_tbf_header(&buff[0..header_size as usize], ver);
                 match header {
                     Ok(header) => {
-                        temp_details.insert("enabled".to_owned(), header.enabled().to_string());
-                        temp_details.insert(
-                            "minumum_ram_size".to_owned(),
-                            header.get_minimum_app_ram_size().to_string(),
-                        );
-                        temp_details.insert(
-                            "name".to_owned(),
+                        temp_details.enabled = Some(header.enabled());
+                        temp_details.minumum_ram_size = Some(header.get_minimum_app_ram_size());
+                        temp_details.name = Some(
                             header
                                 .get_package_name()
                                 .expect("Package name not found.")
                                 .to_string(),
                         );
-                        temp_details.insert(
-                            "kernel_version".to_owned(),
-                            format!(
-                                "{}.{}",
-                                header
-                                    .get_kernel_version()
-                                    .expect("Kernel version not found.")
-                                    .0,
-                                header
-                                    .get_kernel_version()
-                                    .expect("Kernel version not found.")
-                                    .1
-                            ),
+
+                        temp_details.kernel_version = Some(
+                            header
+                                .get_kernel_version()
+                                .expect("Could not get kernel version."),
                         );
+                        // temp_details.kernel_version = Some(format!(
+                        //     "{}.{}",
+                        //     header
+                        //         .get_kernel_version()
+                        //         .expect("Kernel version not found.")
+                        //         .0,
+                        //     header
+                        //         .get_kernel_version()
+                        //         .expect("Kernel version not found.")
+                        //         .1
+                        // ));
                     }
                     // TODO(MicuAna): refactor when reworking errors
                     Err(TbfParseError::ChecksumMismatch(
@@ -143,9 +140,7 @@ pub async fn list_probe(
     Ok(apps_details)
 }
 
-pub async fn info_probe(
-    sub_matches: &ArgMatches,
-) -> Result<HashMap<String, String>, TockloaderError> {
+pub async fn info_probe(sub_matches: &ArgMatches) -> Result<HardwareAttributes, TockloaderError> {
     let lister = Lister::new();
     let probes = lister.list_all();
 
@@ -167,19 +162,15 @@ pub async fn info_probe(
 
             let mut core = session.core(*core_index).unwrap();
 
-            let mut attributes = get_all_attributes(&mut core);
+            let mut attributes: HardwareAttributes = HardwareAttributes::new();
 
-            let bootloader_version = get_bootloader_version(&mut core);
+            get_all_attributes(&mut core, &mut attributes);
 
-            let kernel_attributes = kernel_attributes(&mut core, &mut attributes);
+            get_bootloader_version(&mut core, &mut attributes);
 
-            attributes.insert("bootloader_version".to_owned(), bootloader_version);
-
-            attributes.extend(kernel_attributes.into_iter());
+            kernel_attributes(&mut core, &mut attributes);
 
             println!("{:?}", attributes);
-
-            // println!("Bootloader Version: {}", bootloader_version);
 
             Ok(attributes)
         }
@@ -194,13 +185,13 @@ pub async fn info_probe(
 pub async fn install_app(
     choice: DebugProbeInfo,
     board: &String,
-    chip: &String,
+    chip: &str,
     core_index: &usize,
     kernel_version: &String, /*this is temporary*/
     tab_file: TabFile,
 ) -> Result<(), TockloaderError> {
     // Get hard-coded start_address
-    let board_settings = BoardSettings::new(board.clone(), chip.clone());
+    let board_settings = BoardSettings::new(board.clone(), chip.to_owned());
     let mut address = board_settings.start_address;
 
     // Open port and configure it
@@ -251,7 +242,7 @@ pub async fn install_app(
                     value.push(c?);
                 }
                 println!("{}", value);
-                i = i + 64;
+                i += 64;
             }
         }
         Err(e) => {
@@ -260,7 +251,7 @@ pub async fn install_app(
     }
 
     let mut archive = Archive::new(File::open(tab_file.path).unwrap());
-    for entry in archive.entries().unwrap().into_iter() {
+    for entry in archive.entries().unwrap() {
         match entry {
             Ok(mut entry) => {
                 if let Ok(path) = entry.path() {

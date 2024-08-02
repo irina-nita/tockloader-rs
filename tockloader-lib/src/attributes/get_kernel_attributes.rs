@@ -2,20 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use std::collections::HashMap;
-
 use byteorder::{ByteOrder, LittleEndian};
 use probe_rs::{Core, MemoryInterface};
 
-pub fn kernel_attributes(
-    board_core: &mut Core,
-    attributes: &mut HashMap<String, String>,
-) -> HashMap<String, String> {
-    let mut kernel_attributes: HashMap<String, String> = HashMap::new();
+use super::hardware_attributes::HardwareAttributes;
+
+pub(crate) fn kernel_attributes(board_core: &mut Core, attributes: &mut HardwareAttributes) {
     let address_apps = i32::from_str_radix(
         attributes
-            .get("appaddr")
-            .expect("Error encountered while getting the appaddr for kernel attributes.")
+            .appaddr
+            .clone()
+            .expect("could not retreve appaddr")
             .trim_start_matches("0x"),
         16,
     )
@@ -35,30 +32,16 @@ pub fn kernel_attributes(
     let kernel_binary_start = LittleEndian::read_u32(&kernel_attr_binary[68..72]);
     let kernel_binary_len = LittleEndian::read_u32(&kernel_attr_binary[72..76]);
 
-    kernel_attributes.insert("sentinel".to_owned(), sentinel);
-    kernel_attributes.insert("kernel_version".to_owned(), kernel_version.to_string());
-    kernel_attributes.insert("app_mem_start".to_owned(), app_memory_start.to_string());
-    kernel_attributes.insert("app_mem_len".to_owned(), app_memory_len.to_string());
-    kernel_attributes.insert(
-        "kernel_bin_start".to_owned(),
-        kernel_binary_start.to_string(),
-    );
-    kernel_attributes.insert("kernel_bin_len".to_owned(), kernel_binary_len.to_string());
-
-    // println!("Kernel Attributes");
-    // println!("  Sentinel: {:?}", sentinel);
-    // println!("  Version: {}", kernel_version);
-    // println!("KATLV: APP Memory");
-    // println!("  app_memory_start: {:?}", app_memory_start);
-    // println!("  app_memory_len: {:?}", app_memory_len);
-    // println!("KATLV: Kernel Binary");
-    // println!("  kernel_binary_start: {:?}", kernel_binary_start);
-    // println!("  kernel_binary_len: {:?}", kernel_binary_len);
-    kernel_attributes
+    attributes.sentinel = Some(sentinel);
+    attributes.kernel_version = Some(kernel_version);
+    attributes.app_mem_start = Some(app_memory_start);
+    attributes.app_mem_len = Some(app_memory_len);
+    attributes.kernel_bin_start = Some(kernel_binary_start);
+    attributes.kernel_bin_len = Some(kernel_binary_len);
 }
 
 // TODO(RARES): will have to use this in board attributes too where needed to debload some of the code
-pub fn bytes_to_string(raw: &[u8]) -> String {
+pub(crate) fn bytes_to_string(raw: &[u8]) -> String {
     let decoder = utf8_decode::Decoder::new(raw.iter().cloned());
 
     let mut string = String::new();
@@ -69,7 +52,7 @@ pub fn bytes_to_string(raw: &[u8]) -> String {
 }
 
 #[allow(dead_code)]
-pub fn get_kernel_version(board_core: &mut Core) -> u8 {
+pub(crate) fn get_kernel_version(board_core: &mut Core) -> u8 {
     let addr = 0x3FFFC;
     let mut version = [0u8; 1];
     let _ = board_core.read((addr).try_into().unwrap(), &mut version);
