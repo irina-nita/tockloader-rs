@@ -7,11 +7,7 @@ pub struct TabFile {
 }
 
 impl TabFile {
-    pub fn new(
-        path: String
-    ) -> Self {
-        TabFile {
-            path
-        }
+    pub fn new(path: String) -> Self {
+        TabFile { path }
     }
 }
