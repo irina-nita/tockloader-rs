@@ -148,12 +148,6 @@ impl TabFile {
                                             tabtbf.flag_enabled = Some(header.enabled());
                                             tabtbf.minumum_ram_size =
                                                 Some(header.get_minimum_app_ram_size());
-                                            tabtbf.name = Some(
-                                                header
-                                                    .get_package_name()
-                                                    .expect("Package name not found.")
-                                                    .to_string(),
-                                            );
 
                                             tabtbf.kernel_version = Some(
                                                 header
