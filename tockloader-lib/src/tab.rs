@@ -2,11 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{fs::File, io::Read};
 
 use tar::Archive;
+use tbf_parser::{
+    parse::{parse_tbf_header, parse_tbf_header_lengths},
+    types::TbfParseError,
+};
 
-use crate::errors::TockloaderError;
+use crate::{attributes::app_attributes::AppAttributes, errors::TockloaderError};
 
 pub struct TabFile {
     pub path: String,
@@ -107,14 +111,13 @@ impl TabFile {
         Ok(value)
     }
 
-    pub fn extract_app(&self, arch: Option<String>) /*-> Option<TabFile>*/
-    {
+    pub fn extract_app(&self, arch: Option<String>) -> Option<TabFile> {
         // Find all filenames that start with the architecture name
-        let mut matching_tbf_filenames: Vec<PathBuf> = Vec::new();
         let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
+        let mut tabtbf: AppAttributes = AppAttributes::new();
         for entry in archive.entries().unwrap() {
             match entry {
-                Ok(entry) => {
+                Ok(mut entry) => {
                     if let Ok(path) = entry.path() {
                         if let Some(file_name) = path.file_name() {
                             let name = file_name.to_str().unwrap();
@@ -122,7 +125,58 @@ impl TabFile {
                             let name_vec = name_pieces.collect::<Vec<&str>>();
                             if name_vec.len() >= 2 && name_vec[name_vec.len() - 1] == "tbf" {
                                 if name_vec[0] == arch.clone().unwrap() {
-                                    matching_tbf_filenames.push(file_name.into());
+                                    let mut data = Vec::new();
+                                    entry.read_to_end(&mut data).unwrap();
+                                    let (ver, header_size, _total_size) =
+                                        match parse_tbf_header_lengths(
+                                            &data[0..8].try_into().unwrap(),
+                                        ) {
+                                            Ok((ver, header_size, total_size))
+                                                if header_size != 0 =>
+                                            {
+                                                tabtbf.tbf_version = Some(ver);
+                                                tabtbf.header_size = Some(header_size);
+                                                tabtbf.total_size = Some(total_size);
+                                                (ver, header_size, total_size)
+                                            }
+                                            _ => break,
+                                        };
+                                    let header =
+                                        parse_tbf_header(&data[0..header_size as usize], ver);
+                                    match header {
+                                        Ok(header) => {
+                                            tabtbf.flag_enabled = Some(header.enabled());
+                                            tabtbf.minumum_ram_size =
+                                                Some(header.get_minimum_app_ram_size());
+                                            tabtbf.name = Some(
+                                                header
+                                                    .get_package_name()
+                                                    .expect("Package name not found.")
+                                                    .to_string(),
+                                            );
+
+                                            tabtbf.kernel_version = Some(
+                                                header
+                                                    .get_kernel_version()
+                                                    .expect("Could not get kernel version."),
+                                            );
+                                        }
+                                        // TODO(MicuAna): refactor when reworking errors
+                                        Err(TbfParseError::ChecksumMismatch(
+                                            provided_checksum,
+                                            calculated_checksum,
+                                        )) => {
+                                            println!(
+                                                "Checksum mismatch: provided = {}, calculated = {}",
+                                                provided_checksum, calculated_checksum
+                                            );
+                                            break;
+                                        }
+                                        Err(e) => {
+                                            println!("Failed to parse TBF header: {:?}", e);
+                                            break;
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -133,5 +187,6 @@ impl TabFile {
                 }
             }
         }
+        None
     }
 }
