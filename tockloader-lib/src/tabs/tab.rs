@@ -5,12 +5,10 @@
 use std::{fs::File, io::Read};
 
 use tar::Archive;
-use tbf_parser::{
-    parse::{parse_tbf_header, parse_tbf_header_lengths},
-    types::TbfParseError,
-};
 
-use crate::{attributes::app_attributes::AppAttributes, errors::TockloaderError};
+use crate::errors::TockloaderError;
+
+use super::tbfh::TBFHeader;
 
 pub struct Tab {
     pub path: String,
@@ -114,7 +112,6 @@ impl Tab {
     pub fn extract_app(&self, arch: Option<String>) -> Option<Tab> {
         // Find all filenames that start with the architecture name
         let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
-        let mut tabtbf: AppAttributes = AppAttributes::new();
         for entry in archive.entries().unwrap() {
             match entry {
                 Ok(mut entry) => {
@@ -127,50 +124,8 @@ impl Tab {
                                 if name_vec[0] == arch.clone().unwrap() {
                                     let mut data = Vec::new();
                                     entry.read_to_end(&mut data).unwrap();
-                                    let (ver, header_size, _total_size) =
-                                        match parse_tbf_header_lengths(
-                                            &data[0..8].try_into().unwrap(),
-                                        ) {
-                                            Ok((ver, header_size, total_size))
-                                                if header_size != 0 =>
-                                            {
-                                                tabtbf.tbf_version = Some(ver);
-                                                tabtbf.header_size = Some(header_size);
-                                                tabtbf.total_size = Some(total_size);
-                                                (ver, header_size, total_size)
-                                            }
-                                            _ => break,
-                                        };
-                                    let header =
-                                        parse_tbf_header(&data[0..header_size as usize], ver);
-                                    match header {
-                                        Ok(header) => {
-                                            tabtbf.flag_enabled = Some(header.enabled());
-                                            tabtbf.minumum_ram_size =
-                                                Some(header.get_minimum_app_ram_size());
-
-                                            tabtbf.kernel_version = Some(
-                                                header
-                                                    .get_kernel_version()
-                                                    .expect("Could not get kernel version."),
-                                            );
-                                        }
-                                        // TODO(MicuAna): refactor when reworking errors
-                                        Err(TbfParseError::ChecksumMismatch(
-                                            provided_checksum,
-                                            calculated_checksum,
-                                        )) => {
-                                            println!(
-                                                "Checksum mismatch: provided = {}, calculated = {}",
-                                                provided_checksum, calculated_checksum
-                                            );
-                                            break;
-                                        }
-                                        Err(e) => {
-                                            println!("Failed to parse TBF header: {:?}", e);
-                                            break;
-                                        }
-                                    }
+                                    let tbfh = TBFHeader::new(data);
+                                    dbg!(tbfh);
                                 }
                             }
                         }
