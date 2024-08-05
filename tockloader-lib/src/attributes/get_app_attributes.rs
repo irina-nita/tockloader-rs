@@ -22,20 +22,15 @@ pub(crate) fn get_apps_data(board_core: &mut Core) -> Vec<AppAttributes> {
 
         let mut app_header_data = vec![0u8; 4];
 
-        let _ = board_core.read((address).try_into().unwrap(), &mut app_header_data);
+        let _ = board_core.read(address, &mut app_header_data);
 
         let tbf_version = LittleEndian::read_u16(&app_header_data[0..2]);
 
         let header_size = LittleEndian::read_u16(&app_header_data[2..4]);
 
-        let mut app_header_data = vec![
-            0u8;
-            header_size
-                .try_into()
-                .expect("failed to obtain header size")
-        ];
+        let mut app_header_data = vec![0u8; header_size.into()];
 
-        let _ = board_core.read((address).try_into().unwrap(), &mut app_header_data);
+        let _ = board_core.read(address, &mut app_header_data);
 
         let total_size = LittleEndian::read_u32(&app_header_data[4..8]);
 

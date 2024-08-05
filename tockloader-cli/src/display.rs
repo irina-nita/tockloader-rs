@@ -178,12 +178,12 @@ pub async fn print_list(app_details: &mut [AppAttributes], info: bool) {
                 );
 
                 println!(
-                    " \x1b[1;32m        kernel_major:   {:<10}",
+                    " \x1b[1;32m        kernel_major:               {:<10}",
                     temp_data.kernel_major.unwrap()
                 );
 
                 println!(
-                    " \x1b[1;32m        kernel_minor:   {:<10}",
+                    " \x1b[1;32m        kernel_minor:               {:<10}",
                     temp_data.kernel_minor.unwrap()
                 );
 
