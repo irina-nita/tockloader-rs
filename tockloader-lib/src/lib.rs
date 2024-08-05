@@ -92,5 +92,9 @@ pub async fn install_app(
         }
         Err(e) => println!("Something went wrong: {:?}", e),
     }
+
+    let mut attr = HardwareAttributes::new();
+    get_board_attributes(&mut core, &mut attr);
+    tab_file.extract_app(attr.arch);
     Ok(())
 }
