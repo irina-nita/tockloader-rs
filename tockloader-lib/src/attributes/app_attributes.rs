@@ -7,42 +7,50 @@ pub struct AppAttributes {
     pub tbf_version: Option<u16>,
     pub header_size: Option<u16>,
     pub total_size: Option<u32>,
-    // pub checksum: Option<>,
+    pub checksum: Option<u32>,
     pub flag_enabled: Option<bool>,
-    // pub flag_sticky: Option<>,
-    //      TLV: Main (1)
-    // pub init_fn_offset: Option<>,
-    // pub protected_size: Option<>,
+    pub flag_sticky: Option<bool>,
+    pub tvl_main_type: Option<u16>,
+    pub init_fn_offset: Option<u32>,
+    pub protected_size: Option<u32>,
     pub minumum_ram_size: Option<u32>,
-    //      TLV: Program (9)
-    //// pub init_fn_offset: Option<>,
-    //// pub protected_size: Option<>,
-    ////pub minumum_ram_size: Option<u32>,
-    // pub binary_end_offset: Option<>,
-    // pub app_version: Option<>,
-    //      TLV: Package Name (3)
-    pub name: Option<String>,
-    //      TLV: Kernel Version (8)
-    // pub kernel_major: Option<>
-    // pub kernel_minor: Option<>
+    pub tvl_program_type: Option<u16>,
+    pub binary_end_offset: Option<u32>,
+    pub app_version: Option<u32>,
+    pub tvl_package_type: Option<u16>,
+    pub package_name: Option<String>,
+    pub tvl_kernel_version_type: Option<u16>,
+    pub kernel_major: Option<u16>,
+    pub kernel_minor: Option<u16>,
     pub kernel_version: Option<(u16, u16)>,
-    //      Footer
-    // pub footer_size: Option<>
-    //      Footer TLV: Credentials (128)
-    //      Type: Reserved (0)
-    //      Length: 7008
+    pub footer_size: Option<u32>,
+    pub address: Option<u64>,
 }
 
 impl AppAttributes {
     pub(crate) fn new() -> AppAttributes {
         AppAttributes {
-            name: None,
+            package_name: None,
             flag_enabled: None,
             header_size: None,
             total_size: None,
             kernel_version: None,
             minumum_ram_size: None,
             tbf_version: None,
+            checksum: None,
+            flag_sticky: None,
+            tvl_main_type: None,
+            init_fn_offset: None,
+            protected_size: None,
+            tvl_program_type: None,
+            binary_end_offset: None,
+            app_version: None,
+            tvl_package_type: None,
+            tvl_kernel_version_type: None,
+            kernel_major: None,
+            kernel_minor: None,
+            footer_size: None,
+            address: None,
         }
     }
 }
