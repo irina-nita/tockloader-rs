@@ -214,29 +214,29 @@ pub async fn print_list(app_details: &mut [AppAttributes], info: bool) {
 pub async fn print_info(attributes: &mut HardwareAttributes) {
     println!("\n\nx1b[1;32m Kernel Attributes");
     println!(
-        "\x1b[1;32m     Sentinel: {}",
+        "\x1b[1;32m     Sentinel:               {:<10}",
         attributes.sentinel.clone().unwrap()
     );
     println!(
-        "\x1b[1;32m     Version: {}",
+        "\x1b[1;32m     Version:                {:<10}",
         attributes.kernel_version.unwrap()
     );
     println!("\x1b[1;32m KATLV: APP Memory");
     println!(
-        "\x1b[1;32m     app_memory_start: {}",
+        "\x1b[1;32m     app_memory_start:       {:<10}",
         attributes.app_mem_start.unwrap()
     );
     println!(
-        "\x1b[1;32m     app_memory_len: {}",
+        "\x1b[1;32m     app_memory_len:         {:<10}",
         attributes.app_mem_len.unwrap()
     );
     println!("\x1b[1;32m KATLV: Kernel Binary");
     println!(
-        "\x1b[1;32m     kernel_binary_start: {}",
+        "\x1b[1;32m     kernel_binary_start:    {:<10}",
         attributes.kernel_bin_start.unwrap()
     );
     println!(
-        "\x1b[1;32m     kernel_binary_len: {}\n\n",
+        "\x1b[1;32m     kernel_binary_len:      {:<10}\n\n",
         attributes.kernel_bin_len.unwrap()
     );
 }

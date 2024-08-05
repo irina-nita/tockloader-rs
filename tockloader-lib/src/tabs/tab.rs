@@ -12,13 +12,13 @@ use tbf_parser::{
 
 use crate::{attributes::app_attributes::AppAttributes, errors::TockloaderError};
 
-pub struct TabFile {
+pub struct Tab {
     pub path: String,
 }
 
-impl TabFile {
+impl Tab {
     pub fn new(path: String) -> Self {
-        TabFile { path }
+        Tab { path }
     }
 
     // TODO(MicuAna): add error handling
@@ -111,7 +111,7 @@ impl TabFile {
         Ok(value)
     }
 
-    pub fn extract_app(&self, arch: Option<String>) -> Option<TabFile> {
+    pub fn extract_app(&self, arch: Option<String>) -> Option<Tab> {
         // Find all filenames that start with the architecture name
         let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
         let mut tabtbf: AppAttributes = AppAttributes::new();

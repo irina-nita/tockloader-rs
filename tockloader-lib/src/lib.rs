@@ -6,7 +6,7 @@ pub mod attributes;
 mod board_settings;
 mod errors;
 pub mod probe_session;
-pub mod tab;
+pub mod tabs;
 
 use attributes::app_attributes::AppAttributes;
 use attributes::get_app_attributes::{get_apps_data, get_start_address};
@@ -14,10 +14,11 @@ use attributes::get_board_attributes::{get_appaddr, get_board_attributes, get_bo
 use attributes::get_kernel_attributes::{get_kernel_attributes, get_kernel_version};
 use attributes::hardware_attributes::HardwareAttributes;
 
+use tabs::tab::Tab;
+
 use errors::TockloaderError;
 use probe_rs::probe::DebugProbeInfo;
 use probe_session::ProbeSession;
-use tab::TabFile;
 
 pub async fn list_probe(
     choice: DebugProbeInfo,
@@ -59,7 +60,7 @@ pub async fn install_app(
     board: &String,
     chip: &str,
     core_index: &usize,
-    tab_file: TabFile,
+    tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     // Open port and configure it
     let mut probe_session = ProbeSession::new(choice, board, chip);
