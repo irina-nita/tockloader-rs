@@ -1,16 +1,121 @@
+// Licensed under the Apache License, Version 2.0 or the MIT License.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+// Copyright OXIDOS AUTOMOTIVE 2024.
+
 use byteorder::{ByteOrder, LittleEndian};
-#[derive(Debug)]
-#[allow(dead_code)]
-pub struct TBFHeader {
-    is_app: bool,
-    tbf_version: u16,
-    header_size: u16,
-    total_size: u32,
-    flag: u32,
-    checksum: u32,
+
+#[derive(Clone, Copy, Debug)]
+pub enum TbfHeaderTypes {
+    TbfHeaderMain = 1,
+    TbfHeaderWriteableFlashRegions = 2,
+    TbfHeaderPackageName = 3,
+    TbfHeaderFixedAddresses = 5,
+    TbfHeaderPermissions = 6,
+    TbfHeaderStoragePermissions = 7,
+    TbfHeaderKernelVersion = 8,
+    TbfHeaderProgram = 9,
+    TbfHeaderShortId = 10,
+    TbfFooterCredentials = 128,
+
+    Unknown,
 }
 
-impl TBFHeader {
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfTlv {
+    pub(crate) tipe: TbfHeaderTypes,
+    pub(crate) length: u16,
+}
+impl TbfTlv {
+    pub fn new(tipe: TbfHeaderTypes, length: u16) -> Self {
+        TbfTlv { tipe, length }
+    }
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+
+pub struct TBFHeaderV2Base {
+    pub(crate) is_app: bool,
+    pub(crate) tbf_version: u16,
+    pub(crate) header_size: u16,
+    pub(crate) total_size: u32,
+    pub(crate) flag: u32,
+    pub(crate) checksum: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2Main {
+    init_fn_offset: u32,
+    protected_trailer_size: u32,
+    minimum_ram_size: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2Program {
+    init_fn_offset: u32,
+    protected_trailer_size: u32,
+    minimum_ram_size: u32,
+    binary_end_offset: u32,
+    version: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2WriteableFlashRegion {
+    writeable_flash_region_offset: u32,
+    writeable_flash_region_size: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2FixedAddresses {
+    start_process_ram: u32,
+
+    start_process_flash: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+#[allow(dead_code)]
+struct TbfHeaderDriverPermission {
+    driver_number: u32,
+    offset: u32,
+    allowed_commands: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2Permissions<const L: usize> {
+    length: u16,
+    perms: [TbfHeaderDriverPermission; L],
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2StoragePermissions<const L: usize> {
+    write_id: Option<core::num::NonZeroU32>,
+    read_length: u16,
+    read_ids: [u32; L],
+    modify_length: u16,
+    modify_ids: [u32; L],
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2KernelVersion {
+    major: u16,
+    minor: u16,
+}
+
+#[derive(Clone, Copy, Debug)]
+#[allow(dead_code)]
+pub struct TbfHeaderV2ShortId {
+    short_id: Option<core::num::NonZeroU32>,
+}
+
+impl TBFHeaderV2Base {
     pub fn new(buf: Vec<u8>) -> Self {
         // Whether this TBF header is for an app, or is just padding
         let mut is_app = false;
@@ -25,22 +130,71 @@ impl TBFHeader {
 
         let checksum = LittleEndian::read_u32(&buf[12..16]);
 
-        let full_buffer = buf;
+        let mut full_buffer = buf;
 
         if full_buffer.len() >= header_size as usize && header_size >= 16 {
             let mut nbuf = full_buffer[0..header_size as usize].to_vec();
             for i in 12..header_size {
                 nbuf[i as usize] = 0;
             }
-            let checksum = TBFHeader::_checksum(nbuf);
-            let remaining = header_size - 16;
+            let _checksum = TBFHeaderV2Base::_checksum(nbuf);
+            let mut remaining = header_size - 16;
             if remaining > 0 && full_buffer.len() >= remaining as usize {
                 // This is an application. That means we need more parsing
                 is_app = true;
+                while remaining >= 4 {
+                    let base = u16::from_le_bytes(full_buffer[0..4].try_into().unwrap());
+                    full_buffer = full_buffer[4..full_buffer.len()].to_vec();
+                    let tipe = base << 8;
+                    let length = base >> 8;
+                    remaining -= 4;
+                    match tipe {
+                        1 => {
+                            let _tbf_tlv = TbfTlv::new(TbfHeaderTypes::TbfHeaderMain, length);
+                        }
+                        2 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfHeaderWriteableFlashRegions, length);
+                        }
+                        3 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfHeaderPackageName, length);
+                        }
+                        5 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfHeaderFixedAddresses, length);
+                        }
+                        6 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfHeaderPermissions, length);
+                        }
+                        7 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfHeaderStoragePermissions, length);
+                        }
+                        8 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfHeaderKernelVersion, length);
+                        }
+                        9 => {
+                            let _tbf_tlv = TbfTlv::new(TbfHeaderTypes::TbfHeaderProgram, length);
+                        }
+                        10 => {
+                            let _tbf_tlv = TbfTlv::new(TbfHeaderTypes::TbfHeaderShortId, length);
+                        }
+                        128 => {
+                            let _tbf_tlv =
+                                TbfTlv::new(TbfHeaderTypes::TbfFooterCredentials, length);
+                        }
+                        _ => {
+                            let _tbf_tlv = TbfTlv::new(TbfHeaderTypes::Unknown, length);
+                        }
+                    }
+                }
             }
         }
 
-        TBFHeader {
+        TBFHeaderV2Base {
             is_app,
             tbf_version,
             header_size,

@@ -8,7 +8,7 @@ use tar::Archive;
 
 use crate::errors::TockloaderError;
 
-use super::tbfh::TBFHeader;
+use super::tbfh::TBFHeaderV2Base;
 
 pub struct Tab {
     pub path: String,
@@ -124,7 +124,7 @@ impl Tab {
                                 if name_vec[0] == arch.clone().unwrap() {
                                     let mut data = Vec::new();
                                     entry.read_to_end(&mut data).unwrap();
-                                    let tbfh = TBFHeader::new(data);
+                                    let tbfh = TBFHeaderV2Base::new(data);
                                     dbg!(tbfh);
                                 }
                             }
