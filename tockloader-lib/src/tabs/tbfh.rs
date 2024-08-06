@@ -32,24 +32,32 @@ impl TbfTlv {
     }
 }
 
-#[derive(Debug)]
-#[allow(dead_code)]
-
-pub struct TBFHeaderV2Base {
-    pub(crate) is_app: bool,
-    pub(crate) tbf_version: u16,
-    pub(crate) header_size: u16,
-    pub(crate) total_size: u32,
-    pub(crate) flag: u32,
-    pub(crate) checksum: u32,
-}
-
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub struct TbfHeaderV2Main {
     init_fn_offset: u32,
     protected_trailer_size: u32,
     minimum_ram_size: u32,
+}
+
+impl TbfHeaderV2Main {
+    pub fn new(buffer: Vec<u8>) -> Option<TbfHeaderV2Main> {
+        if buffer.len() != 12 {
+            return None;
+        }
+
+        let init_fn_offset: u32 = LittleEndian::read_u32(&buffer[0..4]);
+
+        let protected_trailer_size: u32 = LittleEndian::read_u32(&buffer[4..28]);
+
+        let minimum_ram_size: u32 = LittleEndian::read_u32(&buffer[8..12]);
+
+        Some(TbfHeaderV2Main {
+            init_fn_offset,
+            protected_trailer_size,
+            minimum_ram_size,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -60,6 +68,41 @@ pub struct TbfHeaderV2Program {
     minimum_ram_size: u32,
     binary_end_offset: u32,
     version: u32,
+}
+
+impl TbfHeaderV2Program {
+    pub fn new(buffer: Vec<u8>, total_size: u32) -> Option<TbfHeaderV2Program> {
+        if buffer.len() == 0 {
+            return Some(TbfHeaderV2Program {
+                init_fn_offset: 0,
+                protected_trailer_size: 0,
+                minimum_ram_size: 0,
+                binary_end_offset: total_size,
+                version: 0,
+            });
+        }
+        if buffer.len() == 20 {
+            let init_fn_offset: u32 = LittleEndian::read_u32(&buffer[0..4]);
+
+            let protected_trailer_size: u32 = LittleEndian::read_u32(&buffer[4..8]);
+
+            let minimum_ram_size: u32 = LittleEndian::read_u32(&buffer[8..12]);
+
+            let binary_end_offset: u32 = LittleEndian::read_u32(&buffer[12..16]);
+
+            let version: u32 = LittleEndian::read_u32(&buffer[16..20]);
+
+            Some(TbfHeaderV2Program {
+                init_fn_offset,
+                protected_trailer_size,
+                minimum_ram_size,
+                binary_end_offset,
+                version,
+            })
+        } else {
+            return None;
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -115,6 +158,18 @@ pub struct TbfHeaderV2ShortId {
     short_id: Option<core::num::NonZeroU32>,
 }
 
+#[derive(Debug)]
+#[allow(dead_code)]
+
+pub struct TBFHeaderV2Base {
+    pub(crate) is_app: bool,
+    pub(crate) tbf_version: u16,
+    pub(crate) header_size: u16,
+    pub(crate) total_size: u32,
+    pub(crate) flag: u32,
+    pub(crate) checksum: u32,
+}
+
 impl TBFHeaderV2Base {
     pub fn new(buf: Vec<u8>) -> Self {
         // Whether this TBF header is for an app, or is just padding
@@ -151,10 +206,12 @@ impl TBFHeaderV2Base {
                     match tipe {
                         1 => {
                             let _tbf_tlv = TbfTlv::new(TbfHeaderTypes::TbfHeaderMain, length);
+                            let _header = TbfHeaderV2Main::new(full_buffer.clone());
                         }
                         2 => {
                             let _tbf_tlv =
                                 TbfTlv::new(TbfHeaderTypes::TbfHeaderWriteableFlashRegions, length);
+                            let _header = TbfHeaderV2Program::new(full_buffer.clone(), total_size);
                         }
                         3 => {
                             let _tbf_tlv =
