@@ -96,6 +96,8 @@ pub async fn install_app(
 
     let mut attr = HardwareAttributes::new();
     get_board_attributes(&mut core, &mut attr);
-    tab_file.extract_app(attr.arch);
+    let app = tab_file.extract_app(attr.arch);
+
+    
     Ok(())
 }

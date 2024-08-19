@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use super::{tbff::TBFFooter, tbfh::TBFHeaderV2Base};
+use tbf_parser::types::{TbfFooterV2Credentials, TbfHeader};
 
 pub struct TabTbf {
-    _filename: String,
-    _tbfh: TBFHeaderV2Base,
-    _app_binary: Vec<u8>,
-    _tbff: TBFFooter,
+    pub filename: String,
+    pub tbfh: TbfHeader,
+    pub app_binary: Vec<u8>,
+    pub tbff: TbfFooterV2Credentials,
 }
 
 impl TabTbf {}

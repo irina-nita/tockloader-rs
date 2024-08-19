@@ -5,10 +5,11 @@
 use std::{fs::File, io::Read};
 
 use tar::Archive;
+use tbf_parser::parse::{parse_tbf_footer, parse_tbf_header, parse_tbf_header_lengths};
 
 use crate::errors::TockloaderError;
 
-use super::tbfh::TBFHeaderV2Base;
+use super::app_tab::TabTbf;
 
 pub struct Tab {
     pub path: String,
@@ -109,27 +110,56 @@ impl Tab {
         Ok(value)
     }
 
-    pub fn extract_app(&self, arch: Option<String>) -> Option<Tab> {
+    pub fn extract_app(&self, arch: Option<String>) -> Option<TabTbf> {
         // Find all filenames that start with the architecture name
         let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
         for entry in archive.entries().unwrap() {
             match entry {
                 Ok(mut entry) => {
-                    if let Ok(path) = entry.path() {
-                        if let Some(file_name) = path.file_name() {
-                            let name = file_name.to_str().unwrap();
-                            let name_pieces = name.split(".");
-                            let name_vec = name_pieces.collect::<Vec<&str>>();
-                            if name_vec.len() >= 2 && name_vec[name_vec.len() - 1] == "tbf" {
-                                if name_vec[0] == arch.clone().unwrap() {
-                                    let mut data = Vec::new();
-                                    entry.read_to_end(&mut data).unwrap();
-                                    let tbfh = TBFHeaderV2Base::new(data);
-                                    dbg!(tbfh);
-                                }
+                    let path = entry.path().unwrap();
+                    if let Some(file_name) = path.file_name() {
+                        let name = file_name.to_str().unwrap();
+                        let name_pieces = name.split(".");
+                        let name_vec = name_pieces.collect::<Vec<&str>>();
+                        if name_vec.len() >= 2 && name_vec[name_vec.len() - 1] == "tbf" {
+                            if name_vec[0] == arch.clone().unwrap() {
+                                continue;
                             }
                         }
                     }
+                    let mut data = Vec::new();
+                    entry.read_to_end(&mut data).unwrap();
+
+                    let (_ver, header_len, _whole_len) =
+                        parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
+                            .ok()
+                            .unwrap();
+
+                    let header = parse_tbf_header(&data[0..header_len as usize], 2).unwrap();
+
+                    // TODO(Micu Ana): handle error if whole_len < data.len()
+
+                    let start_of_app_binary =
+                        (header_len as u32 + header.get_protected_size()) as usize;
+                    let start_of_footers = header.get_binary_end() as usize;
+                    let binary = data[start_of_app_binary..start_of_footers].to_vec();
+
+                    let binary_offset = header.get_binary_end() as usize;
+                    let (footer, _footer_size) = parse_tbf_footer(&data[binary_offset..]).unwrap();
+
+                    return Some(TabTbf {
+                        filename: entry
+                            .path()
+                            .unwrap()
+                            .file_name()
+                            .unwrap()
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                        tbfh: header,
+                        app_binary: binary,
+                        tbff: footer,
+                    })
                 }
                 Err(e) => {
                     println!("Can't open entry in tab: {:?}", e);

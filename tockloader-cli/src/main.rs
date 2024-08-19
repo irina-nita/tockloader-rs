@@ -39,6 +39,7 @@ async fn run() -> Result<(), TockloaderError> {
             };
         }
         Some(("list", sub_matches)) => {
+            // TODO(george-cosma):inspect-err
             let probe = select_probe();
             match probe {
                 Ok(probe) => {
