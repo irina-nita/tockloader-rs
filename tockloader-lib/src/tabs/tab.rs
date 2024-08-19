@@ -130,7 +130,7 @@ impl Tab {
                     let mut data = Vec::new();
                     entry.read_to_end(&mut data).unwrap();
 
-                    let (_ver, header_len, _whole_len) =
+                    let (_ver, header_len, whole_len) =
                         parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
                             .ok()
                             .unwrap();
@@ -147,8 +147,8 @@ impl Tab {
                     let binary_offset = header.get_binary_end() as usize;
                     let (footer, _footer_size) = parse_tbf_footer(&data[binary_offset..]).unwrap();
 
-                    return Some(TabTbf {
-                        filename: entry
+                    let app = TabTbf::new(
+                        entry
                             .path()
                             .unwrap()
                             .file_name()
@@ -156,10 +156,12 @@ impl Tab {
                             .to_str()
                             .unwrap()
                             .to_string(),
-                        tbfh: header,
-                        app_binary: binary,
-                        tbff: footer,
-                    })
+                        header,
+                        binary,
+                        footer,
+                        whole_len as usize,
+                    );
+                    return Some(app);
                 }
                 Err(e) => {
                     println!("Can't open entry in tab: {:?}", e);

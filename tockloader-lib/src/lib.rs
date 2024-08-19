@@ -68,7 +68,7 @@ pub async fn install_app(
     let address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
 
     // Jump through the linked list of apps to check the address to install the app
-    let _start_address = get_start_address(&mut core, address);
+    let start_address = get_start_address(&mut core, address).unwrap();
 
     // Verify if the specified app is compatible with board
     match tab_file.is_compatible_with_board(board) {
@@ -96,8 +96,14 @@ pub async fn install_app(
 
     let mut attr = HardwareAttributes::new();
     get_board_attributes(&mut core, &mut attr);
-    let app = tab_file.extract_app(attr.arch);
-
-    
+    let app = tab_file.extract_app(attr.arch).unwrap();
+    let size = app.get_size() as u64;
+    // Make sure the app is aligned to a multiple of its size
+    let multiple = start_address / size;
+    if multiple * size != start_address {
+        // Not aligned, insert padding app
+        let new_address = ((start_address + size) / size) * size;
+        let _gap_size = new_address - start_address;
+    }
     Ok(())
 }

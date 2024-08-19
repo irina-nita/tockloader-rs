@@ -4,11 +4,33 @@
 
 use tbf_parser::types::{TbfFooterV2Credentials, TbfHeader};
 
+#[allow(dead_code)]
 pub struct TabTbf {
-    pub filename: String,
-    pub tbfh: TbfHeader,
-    pub app_binary: Vec<u8>,
-    pub tbff: TbfFooterV2Credentials,
+    filename: String,
+    tbfh: TbfHeader,
+    app_binary: Vec<u8>,
+    tbff: TbfFooterV2Credentials,
+    size: usize,
 }
 
-impl TabTbf {}
+impl TabTbf {
+    pub fn new(
+        filename: String,
+        tbfh: TbfHeader,
+        app_binary: Vec<u8>,
+        tbff: TbfFooterV2Credentials,
+        size: usize,
+    ) -> Self {
+        TabTbf {
+            filename,
+            tbfh,
+            app_binary,
+            tbff,
+            size,
+        }
+    }
+
+    pub fn get_size(self) -> usize {
+        return self.size;
+    }
+}
