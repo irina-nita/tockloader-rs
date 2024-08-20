@@ -68,7 +68,7 @@ pub async fn install_app(
     let address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
 
     // Jump through the linked list of apps to check the address to install the app
-    let mut start_address = get_start_address(&mut core, address).unwrap();
+    let start_address = get_start_address(&mut core, address).unwrap();
 
     // Verify if the specified app is compatible with board
     match tab_file.is_compatible_with_board(board) {
@@ -98,14 +98,78 @@ pub async fn install_app(
     get_board_attributes(&mut core, &mut attr);
     let app = tab_file.extract_app(attr.arch).unwrap();
     let size = app.get_size() as u64;
+
     // Make sure the app is aligned to a multiple of its size
     let multiple = start_address / size;
-    if multiple * size != start_address {
-        // Not aligned, insert padding app
+    let (new_address, gap_size) = if multiple * size != start_address {
         let new_address = ((start_address + size) / size) * size;
         let gap_size = new_address - start_address;
-        start_address = new_address;
+        (new_address, gap_size)
+    } else {
+        (start_address, 0)
+    };
+
+    // Make sure the binary is a multiple of the page size by padding 0xFFs
+    // TODO(Micu Ana): check if the page-size differs
+    let page_size = 512;
+    let binary_len = app.get_app_binary().len();
+    let needs_padding = binary_len % page_size != 0;
+
+    let mut app = app;
+    if gap_size > 0 {
         app.set_padding(gap_size);
     }
+
+    if needs_padding {
+        let remaining = page_size - (binary_len % page_size);
+        app.add_padding_to_app_binary(remaining);
+    }
+
+    // Get indices of pages that have valid data to write
+    let mut valid_pages: Vec<u8> = Vec::new();
+    let binary = app.get_app_binary();
+    for i in 0..(binary_len / page_size) {
+        for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
+            if b != 0 {
+                valid_pages.push(i.try_into().unwrap());
+                break;
+            }
+        }
+    }
+
+    // If there are no pages valid, all pages would have been removed, so we write them all
+    if valid_pages.len() == 0 {
+        for i in 0..(binary_len / page_size) {
+            valid_pages.push(i.try_into().unwrap());
+        }
+    }
+
+    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
+    let mut ending_pages: Vec<u8> = Vec::new();
+    for &i in &valid_pages {
+        let mut iter = valid_pages.iter();
+        if iter.find(|&&x| x == (i + 1)).is_none() && (i + 1) < (binary_len / page_size) as u8 {
+            ending_pages.push(i + 1);
+        }
+    }
+
+    for i in ending_pages {
+        valid_pages.push(i);
+    }
+
+    for i in valid_pages {
+        // Create the packet that we send to the bootloader
+        // First four bytes are the address of the page
+        let mut pkt = (new_address + page_size as u64).to_le_bytes().to_vec();
+
+        // Then the bytes that go into the page
+        for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
+            pkt.push(b);
+        }
+
+        // Write to bootloader
+        //...
+    }
+
     Ok(())
 }

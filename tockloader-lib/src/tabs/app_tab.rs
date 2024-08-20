@@ -36,11 +36,17 @@ impl TabTbf {
         return self.size;
     }
 
-    pub fn get_app_binary(self) -> Vec<u8> {
-        return self.app_binary;
+    pub fn get_app_binary(&self) -> Vec<u8> {
+        return self.app_binary.clone();
     }
 
-    pub fn set_padding(mut self, padding: u64) {
+    pub fn add_padding_to_app_binary(&mut self, remaining: usize) {
+        for _i in 0..remaining {
+            self.app_binary.push(0xFF);
+        }
+    }
+
+    pub fn set_padding(&mut self, padding: u64) {
         self.padding = Some(padding);
     }
 }
