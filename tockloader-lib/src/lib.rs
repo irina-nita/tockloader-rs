@@ -68,7 +68,7 @@ pub async fn install_app(
     let address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
 
     // Jump through the linked list of apps to check the address to install the app
-    let start_address = get_start_address(&mut core, address).unwrap();
+    let mut start_address = get_start_address(&mut core, address).unwrap();
 
     // Verify if the specified app is compatible with board
     match tab_file.is_compatible_with_board(board) {
@@ -103,7 +103,9 @@ pub async fn install_app(
     if multiple * size != start_address {
         // Not aligned, insert padding app
         let new_address = ((start_address + size) / size) * size;
-        let _gap_size = new_address - start_address;
+        let gap_size = new_address - start_address;
+        start_address = new_address;
+        app.set_padding(gap_size);
     }
     Ok(())
 }

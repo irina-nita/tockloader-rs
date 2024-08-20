@@ -11,6 +11,7 @@ pub struct TabTbf {
     app_binary: Vec<u8>,
     tbff: TbfFooterV2Credentials,
     size: usize,
+    padding: Option<u64>,
 }
 
 impl TabTbf {
@@ -27,10 +28,19 @@ impl TabTbf {
             app_binary,
             tbff,
             size,
+            padding: None,
         }
     }
 
-    pub fn get_size(self) -> usize {
+    pub fn get_size(&self) -> usize {
         return self.size;
+    }
+
+    pub fn get_app_binary(self) -> Vec<u8> {
+        return self.app_binary;
+    }
+
+    pub fn set_padding(mut self, padding: u64) {
+        self.padding = Some(padding);
     }
 }
