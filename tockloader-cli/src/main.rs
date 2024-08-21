@@ -11,7 +11,7 @@ use cli::make_cli;
 use display::{print_info, print_list};
 use errors::TockloaderError;
 use serial::select_probe;
-use tockloader_lib::{info_probe, install_app, list_probe, tabs::tab::Tab};
+use tockloader_lib::{info_probe, list_probe};
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -50,24 +50,6 @@ async fn run() -> Result<(), TockloaderError> {
                     )
                     .await;
                     print_list(&mut apps_details, false).await;
-                }
-                Err(err) => println!("{}", err),
-            }
-        }
-        Some(("install", sub_matches)) => {
-            let probe = select_probe();
-            let tab_file = Tab::new(sub_matches.get_one::<String>("tab").unwrap().to_string());
-            match probe {
-                Ok(probe) => {
-                    install_app(
-                        probe,
-                        sub_matches.get_one::<String>("board").unwrap(),
-                        sub_matches.get_one::<String>("chip").unwrap(),
-                        sub_matches.get_one::<usize>("core").unwrap(),
-                        tab_file,
-                    )
-                    .await
-                    .unwrap();
                 }
                 Err(err) => println!("{}", err),
             }

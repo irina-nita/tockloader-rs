@@ -50,10 +50,3 @@ pub(crate) fn bytes_to_string(raw: &[u8]) -> String {
     }
     string
 }
-
-pub(crate) fn get_kernel_version(board_core: &mut Core) -> u8 {
-    let addr = 0x3FFFC;
-    let mut version = [0u8; 1];
-    let _ = board_core.read((addr).try_into().unwrap(), &mut version);
-    version[0]
-}
