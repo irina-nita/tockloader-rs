@@ -32,7 +32,7 @@ pub async fn print_list(app_details: &mut [AppAttributes], info: bool) {
                 );
 
                 println!(
-                    " \x1b[1;32m Stricky:             {}",
+                    " \x1b[1;32m Sticky:             {}",
                     temp_data.flag_sticky.unwrap()
                 );
 
