@@ -30,7 +30,7 @@ fn get_subcommands() -> Vec<Command> {
             .about("List and inspect probes")
             .args(get_app_args())
             .args(get_channel_args())
-            .arg_required_else_help(false),
+            .arg_required_else_help(true),
         Command::new("install")
             .about("Install apps")
             .args(get_app_args())
@@ -40,7 +40,7 @@ fn get_subcommands() -> Vec<Command> {
             .about("Verbose information about the connected board")
             .args(get_app_args())
             .args(get_channel_args())
-            .arg_required_else_help(false),
+            .arg_required_else_help(true),
     ]
 }
 
