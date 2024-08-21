@@ -94,8 +94,11 @@ pub async fn install_app(
         Err(e) => println!("Something went wrong: {:?}", e),
     }
 
+    // Get board data
     let mut attr = HardwareAttributes::new();
     get_board_attributes(&mut core, &mut attr);
+
+    // Create app object
     let app = tab_file.extract_app(attr.arch).unwrap();
     let size = app.get_size() as u64;
 
@@ -112,7 +115,8 @@ pub async fn install_app(
     // Make sure the binary is a multiple of the page size by padding 0xFFs
     // TODO(Micu Ana): check if the page-size differs
     let page_size = 512;
-    let binary_len = app.get_app_binary().len();
+    let binary = app.get_app_binary();
+    let binary_len = binary.len();
     let needs_padding = binary_len % page_size != 0;
 
     let mut app = app;
@@ -126,36 +130,7 @@ pub async fn install_app(
     }
 
     // Get indices of pages that have valid data to write
-    let mut valid_pages: Vec<u8> = Vec::new();
-    let binary = app.get_app_binary();
-    for i in 0..(binary_len / page_size) {
-        for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
-            if b != 0 {
-                valid_pages.push(i.try_into().unwrap());
-                break;
-            }
-        }
-    }
-
-    // If there are no pages valid, all pages would have been removed, so we write them all
-    if valid_pages.len() == 0 {
-        for i in 0..(binary_len / page_size) {
-            valid_pages.push(i.try_into().unwrap());
-        }
-    }
-
-    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
-    let mut ending_pages: Vec<u8> = Vec::new();
-    for &i in &valid_pages {
-        let mut iter = valid_pages.iter();
-        if iter.find(|&&x| x == (i + 1)).is_none() && (i + 1) < (binary_len / page_size) as u8 {
-            ending_pages.push(i + 1);
-        }
-    }
-
-    for i in ending_pages {
-        valid_pages.push(i);
-    }
+    let valid_pages: Vec<u8> = app.get_valid_pages(binary_len, page_size);
 
     for i in valid_pages {
         // Create the packet that we send to the bootloader
@@ -167,8 +142,7 @@ pub async fn install_app(
             pkt.push(b);
         }
 
-        // Write to bootloader
-        //...
+        // TODO(Micu Ana): Write to bootloader
     }
 
     Ok(())
