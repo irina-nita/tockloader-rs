@@ -36,14 +36,14 @@ impl ProbeSession {
                             port.write_request_to_send(false).unwrap();
                             port.write_data_terminal_ready(false).unwrap();
                         }
-                        Err(e) => {
-                            eprintln!("Failed to open serial port: {}\n", e);
+                        Err(_e) => {
+                            //TODO(Micu Ana): Add error handling
                         }
                     }
                 }
             }
         }
-        let probe_session = session.expect("Couldnt create a session");
+        let probe_session = session.expect("Couldn't create a session");
         ProbeSession {
             session: Some(probe_session),
         }
