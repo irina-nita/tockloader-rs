@@ -28,7 +28,6 @@ impl ProbeSession {
                     let builder = tokio_serial::new(port.port_name, 115200);
                     match SerialStream::open(&builder) {
                         Ok(mut port) => {
-                            println!("Serial port opened successfully!\n");
                             port.set_parity(Parity::None).unwrap();
                             port.set_stop_bits(StopBits::One).unwrap();
                             port.set_flow_control(FlowControl::None).unwrap();
