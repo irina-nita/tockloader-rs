@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use crate::board_settings::BoardSettings;
 use probe_rs::probe::DebugProbeInfo;
 use probe_rs::{Core, Permissions, Session};
 use std::time::Duration;
@@ -10,23 +9,16 @@ use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortType, SerialStream
 
 pub struct ProbeSession {
     pub session: Option<Session>,
-    pub address: Option<u64>,
 }
 
 impl ProbeSession {
-    pub fn new(probe_info: DebugProbeInfo, board: &str, chip: &str) -> ProbeSession {
-        let board_settings = BoardSettings::new(board.to_owned(), chip.to_owned());
-        let address = board_settings.start_address;
+    pub fn new(probe_info: DebugProbeInfo, chip: &str) -> ProbeSession {
         let serial_nr = probe_info.clone().serial_number.unwrap();
         let mut probe = Some(probe_info.open().unwrap());
         let mut session = None;
 
         if let Some(probe) = probe.take() {
-            session = Some(
-                probe
-                    .attach(board_settings.chip.clone(), Permissions::default())
-                    .unwrap(),
-            );
+            session = Some(probe.attach(chip, Permissions::default()).unwrap());
         }
         let ports = tokio_serial::available_ports().unwrap();
         for port in ports {
@@ -54,7 +46,6 @@ impl ProbeSession {
         let probe_session = session.expect("Couldnt create a session");
         ProbeSession {
             session: Some(probe_session),
-            address: Some(address),
         }
     }
 

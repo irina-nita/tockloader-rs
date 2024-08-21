@@ -3,7 +3,6 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 pub mod attributes;
-mod board_settings;
 mod errors;
 pub mod probe_session;
 pub mod tabs;
@@ -22,11 +21,10 @@ use probe_session::ProbeSession;
 
 pub async fn list_probe(
     choice: DebugProbeInfo,
-    board: &str,
     chip: &str,
     core_index: &usize,
 ) -> Vec<AppAttributes> {
-    let mut probe_session = ProbeSession::new(choice, board, chip);
+    let mut probe_session = ProbeSession::new(choice, chip);
     let mut core = probe_session.get_core(*core_index);
 
     get_apps_data(&mut core)
@@ -34,11 +32,10 @@ pub async fn list_probe(
 
 pub async fn info_probe(
     choice: DebugProbeInfo,
-    board: &str,
     chip: &str,
     core_index: &usize,
 ) -> (HardwareAttributes, Vec<AppAttributes>) {
-    let mut probe_session = ProbeSession::new(choice, board, chip);
+    let mut probe_session = ProbeSession::new(choice, chip);
 
     let mut core = probe_session.get_core(*core_index);
 
@@ -63,7 +60,7 @@ pub async fn install_app(
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     // Open port and configure it
-    let mut probe_session = ProbeSession::new(choice, board, chip);
+    let mut probe_session = ProbeSession::new(choice, chip);
     let mut core = probe_session.get_core(*core_index);
     let address: u64 = get_appaddr(&mut core).expect("Could not find app address.");
 

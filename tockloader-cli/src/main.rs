@@ -45,7 +45,6 @@ async fn run() -> Result<(), TockloaderError> {
                 Ok(probe) => {
                     let mut apps_details = list_probe(
                         probe,
-                        sub_matches.get_one::<String>("board").unwrap(),
                         sub_matches.get_one::<String>("chip").unwrap(),
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
@@ -79,7 +78,6 @@ async fn run() -> Result<(), TockloaderError> {
                 Ok(probe) => {
                     let mut attributes = info_probe(
                         probe,
-                        sub_matches.get_one::<String>("board").unwrap(),
                         sub_matches.get_one::<String>("chip").unwrap(),
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
