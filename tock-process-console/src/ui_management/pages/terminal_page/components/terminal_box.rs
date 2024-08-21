@@ -13,7 +13,8 @@ use crossterm::event::{KeyCode, KeyEventKind, MouseEventKind};
 use ratatui::{
     layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Paragraph},
+    widgets::block::Block,
+    widgets::{Borders, Paragraph},
 };
 use tokio::sync::mpsc::UnboundedSender;
 use tui_term::{vt100::Parser, widget::PseudoTerminal};
