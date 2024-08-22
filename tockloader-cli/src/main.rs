@@ -49,7 +49,7 @@ async fn run() -> Result<(), TockloaderError> {
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
                     .await;
-                    print_list(&mut apps_details, false).await;
+                    print_list(&mut apps_details).await;
                 }
                 Err(err) => println!("{}", err),
             }
@@ -58,14 +58,13 @@ async fn run() -> Result<(), TockloaderError> {
             let probe = select_probe();
             match probe {
                 Ok(probe) => {
-                    let mut attributes = info_probe(
+                    let attributes = info_probe(
                         probe,
                         sub_matches.get_one::<String>("chip").unwrap(),
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
                     .await;
-                    print_list(&mut attributes.1, true).await;
-                    print_info(&mut attributes.0).await;
+                    print_info(&mut attributes.apps.unwrap(), &mut attributes.general.unwrap()).await;
                 }
                 Err(err) => println!("{}", err),
             }

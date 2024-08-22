@@ -2,55 +2,76 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
+use probe_rs::{Core, MemoryInterface};
+
+use tbf_parser::{self, parse::{parse_tbf_header, parse_tbf_header_lengths}, types::TbfHeader};
+
+// use super::general_attributes::get_appaddr;
+
+
+
 #[derive(Debug)]
 pub struct AppAttributes {
-    pub tbf_version: Option<u16>,
-    pub header_size: Option<u16>,
-    pub total_size: Option<u32>,
-    pub checksum: Option<u32>,
-    pub flag_enabled: Option<bool>,
-    pub flag_sticky: Option<bool>,
-    pub tvl_main_type: Option<u16>,
-    pub init_fn_offset: Option<u32>,
-    pub protected_size: Option<u32>,
-    pub minumum_ram_size: Option<u32>,
-    pub tvl_program_type: Option<u16>,
-    pub binary_end_offset: Option<u32>,
-    pub app_version: Option<u32>,
-    pub tvl_package_type: Option<u16>,
-    pub package_name: Option<String>,
-    pub tvl_kernel_version_type: Option<u16>,
-    pub kernel_major: Option<u16>,
-    pub kernel_minor: Option<u16>,
-    pub kernel_version: Option<(u16, u16)>,
-    pub footer_size: Option<u32>,
-    pub address: Option<u64>,
+    pub tbf_header: TbfHeader,
 }
 
 impl AppAttributes {
-    pub(crate) fn new() -> AppAttributes {
+    pub(crate) fn new(header_data: TbfHeader) -> AppAttributes {
         AppAttributes {
-            package_name: None,
-            flag_enabled: None,
-            header_size: None,
-            total_size: None,
-            kernel_version: None,
-            minumum_ram_size: None,
-            tbf_version: None,
-            checksum: None,
-            flag_sticky: None,
-            tvl_main_type: None,
-            init_fn_offset: None,
-            protected_size: None,
-            tvl_program_type: None,
-            binary_end_offset: None,
-            app_version: None,
-            tvl_package_type: None,
-            tvl_kernel_version_type: None,
-            kernel_major: None,
-            kernel_minor: None,
-            footer_size: None,
-            address: None,
+            tbf_header: header_data,
         }
     }
 }
+
+pub(crate) fn get_apps_data(board_core: &mut Core, addr: u64) -> Vec<AppAttributes> {
+
+    let mut appaddr: u64 = addr;
+    let mut apps_counter = 0;
+    let mut apps_details: Vec<AppAttributes> = vec![];
+
+    loop {
+       
+
+        let mut appdata = vec![0u8; 8];
+
+        let _ = board_core.read(appaddr, &mut appdata);
+
+        let tbf_version: u16;
+        let header_size: u16;
+        let total_size: u32;
+
+        match parse_tbf_header_lengths(&appdata.try_into().unwrap())
+        {
+            Ok(data) => {
+                tbf_version = data.0;
+                header_size = data.1;
+                total_size = data.2;
+            }
+            _ => break,
+        };
+
+        let mut header_data = vec![0u8; header_size as usize];
+
+        let _ = board_core.read(appaddr, &mut header_data);
+
+        let header: TbfHeader;
+
+        match parse_tbf_header(&header_data, tbf_version)
+        {
+            Ok(parsed_header) => header = parsed_header,
+            Err(e) => panic!("Error found while getting tbf header data: {:?}", e),
+        }
+
+        let details: AppAttributes = AppAttributes::new(header);
+        
+        apps_details.insert(apps_counter, details);
+        apps_counter += 1;
+        appaddr += total_size as u64;
+    }
+    apps_details
+}
+
+
+
+
+
