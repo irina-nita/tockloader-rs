@@ -6,7 +6,6 @@ pub mod attributes;
 mod errors;
 pub mod probe_session;
 
-use attributes::app_attributes::get_apps_data;
 use attributes::app_attributes::AppAttributes;
 use attributes::general_attributes::GeneralAttributes;
 use attributes::system_attributes::SystemAttributes;
@@ -22,10 +21,9 @@ pub async fn list_probe(
     let mut probe_session = ProbeSession::new(choice, chip);
     let mut core = probe_session.get_core(*core_index);
 
-    let mut system_attributes = SystemAttributes::new();
-    system_attributes.get_system_attributes(&mut core);
+    let system_attributes = SystemAttributes::read_system_attributes(&mut core);
 
-    get_apps_data(&mut core, system_attributes.appaddr.unwrap())
+    AppAttributes::read_apps_data(&mut core, system_attributes.appaddr.unwrap())
 }
 
 pub async fn info_probe(
@@ -37,10 +35,9 @@ pub async fn info_probe(
 
     let mut core = probe_session.get_core(*core_index);
 
-    let mut system_attributes = SystemAttributes::new();
-    system_attributes.get_system_attributes(&mut core);
+    let system_attributes = SystemAttributes::read_system_attributes(&mut core);
 
-    let apps_details = get_apps_data(&mut core, system_attributes.appaddr.unwrap());
+    let apps_details = AppAttributes::read_apps_data(&mut core, system_attributes.appaddr.unwrap());
 
     GeneralAttributes::new(system_attributes, apps_details)
 }

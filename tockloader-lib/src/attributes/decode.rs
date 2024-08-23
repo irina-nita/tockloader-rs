@@ -17,6 +17,7 @@ impl DecodedAttribute {
     }
 }
 
+// TODO: explain what is happening here
 pub(crate) fn decode_attribute(step: &[u8]) -> Option<DecodedAttribute> {
     let raw_key = &step[0..8];
 
@@ -46,6 +47,7 @@ pub(crate) fn decode_attribute(step: &[u8]) -> Option<DecodedAttribute> {
     Some(DecodedAttribute::new(key, value))
 }
 
+// TODO: explain what is happening here
 pub(crate) fn bytes_to_string(raw: &[u8]) -> String {
     let decoder = utf8_decode::Decoder::new(raw.iter().cloned());
 

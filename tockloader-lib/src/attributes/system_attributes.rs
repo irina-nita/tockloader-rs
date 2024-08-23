@@ -39,7 +39,9 @@ impl SystemAttributes {
         }
     }
 
-    pub(crate) fn get_system_attributes(&mut self, board_core: &mut Core) {
+    // TODO: explain what is happening here
+    pub(crate) fn read_system_attributes(board_core: &mut Core) -> Self {
+        let mut result = SystemAttributes::new();
         let address = 0x600;
         let mut buf = [0u8; 64 * 16];
 
@@ -63,13 +65,13 @@ impl SystemAttributes {
 
             match index_data {
                 0 => {
-                    self.board = Some(decoded_attributes.value.to_string());
+                    result.board = Some(decoded_attributes.value.to_string());
                 }
                 1 => {
-                    self.arch = Some(decoded_attributes.value.to_string());
+                    result.arch = Some(decoded_attributes.value.to_string());
                 }
                 2 => {
-                    self.appaddr = Some(
+                    result.appaddr = Some(
                         u64::from_str_radix(
                             decoded_attributes
                                 .value
@@ -81,7 +83,7 @@ impl SystemAttributes {
                     );
                 }
                 3 => {
-                    self.boothash = Some(decoded_attributes.value.to_string());
+                    result.boothash = Some(decoded_attributes.value.to_string());
                 }
                 _ => panic!("Board data not found!"),
             }
@@ -102,10 +104,12 @@ impl SystemAttributes {
 
         let string = string.trim_matches(char::from(0));
 
-        self.bootloader_version = Some(string.to_owned());
+        result.bootloader_version = Some(string.to_owned());
 
         let mut kernel_attr_binary = [0u8; 100];
-        let _ = board_core.read(self.appaddr.unwrap() - 100, &mut kernel_attr_binary);
+        let _ = board_core
+            .read(result.appaddr.unwrap() - 100, &mut kernel_attr_binary)
+            .unwrap();
 
         let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
         let kernel_version = LittleEndian::read_uint(&kernel_attr_binary[95..96], 1);
@@ -116,11 +120,13 @@ impl SystemAttributes {
         let kernel_binary_start = LittleEndian::read_u32(&kernel_attr_binary[68..72]);
         let kernel_binary_len = LittleEndian::read_u32(&kernel_attr_binary[72..76]);
 
-        self.sentinel = Some(sentinel);
-        self.kernel_version = Some(kernel_version);
-        self.app_mem_start = Some(app_memory_start);
-        self.app_mem_len = Some(app_memory_len);
-        self.kernel_bin_start = Some(kernel_binary_start);
-        self.kernel_bin_len = Some(kernel_binary_len);
+        result.sentinel = Some(sentinel);
+        result.kernel_version = Some(kernel_version);
+        result.app_mem_start = Some(app_memory_start);
+        result.app_mem_len = Some(app_memory_len);
+        result.kernel_bin_start = Some(kernel_binary_start);
+        result.kernel_bin_len = Some(kernel_binary_len);
+
+        result
     }
 }
