@@ -42,25 +42,26 @@ pub enum Command {
     CommandSetStartAddress = 0x23,
 }
 
+#[derive(Clone)]
 pub enum Response {
     // Responses from the bootloader
-    ResponseOverflow,
-    ResponsePong,
-    ResponseBadAddr,
-    ResponseIntError,
-    ResponseBadArgs,
-    ResponseOK,
-    ResponseUnknown,
-    ResponseXFTimeout,
-    ResponseXFEPE,
-    ResponseCRCRX,
-    ResponseReadRange,
-    ResponseXRRange,
-    ResponseGetAttribute,
-    ResponseCRCInternalFlash,
-    ResponseCRCXF,
-    ResponseInfo,
-    ResponseChangeBaudFail,
+    ResponseOverflow = 0x10,
+    ResponsePong = 0x11,
+    ResponseBadAddr = 0x12,
+    ResponseIntError = 0x13,
+    ResponseBadArgs = 0x14,
+    ResponseOK = 0x15,
+    ResponseUnknown = 0x16,
+    ResponseXFTimeout = 0x17,
+    ResponseXFEPE = 0x18,
+    ResponseCRCRX = 0x19,
+    ResponseReadRange = 0x20,
+    ResponseXRRange = 0x21,
+    ResponseGetAttribute = 0x22,
+    ResponseCRCInternalFlash = 0x23,
+    ResponseCRCXF = 0x24,
+    ResponseInfo = 0x25,
+    ResponseChangeBaudFail = 0x26,
 }
 
 impl From<u8> for Response {
@@ -148,7 +149,7 @@ impl BootloaderSerial {
         let _ = self.port.as_mut().unwrap().try_write(&message);
 
         // Response has a two byte header, then response_len bytes
-        let _bytes_to_read = 2 + response_len;
+        let bytes_to_read = 2 + response_len;
 
         // Loop to read in that number of bytes starting with the header
         let mut ret: Vec<u8> = vec![0; 2];
@@ -206,6 +207,68 @@ impl BootloaderSerial {
             //TODO(Micu Ana): Add error handling
             return Ok(Response::from(ret[1]));
         }
-        Ok(response_code)
+
+        if ret[1] != response_code.clone() as u8 {
+            //TODO(Micu Ana): Add error handling
+            return Ok(Response::from(ret[1]));
+        }
+
+        let mut new_data: Vec<u8> = Vec::new();
+
+        while bytes_to_read - ret.len() > 0 {
+            match self.port.as_mut().unwrap().try_read(&mut new_data[0..(bytes_to_read - ret.len())]) {
+
+                Ok(value) => {
+                    // Odd number of escape characters 
+                    // These can only come in pairs, so read another byte
+                    let mut count = 0;
+                    for i in 0..value {
+                        if new_data[i] == ESCAPE_CHAR {
+                            count += 1;
+                        }
+                    }
+                    if count % 2 == 1 {
+                        let byte: u8 = 0;
+                        match self.port.as_mut().unwrap().try_read(&mut [byte]) {
+                            
+                            Ok(_) => {
+                                new_data.push(byte);
+                            }
+
+                            Err(e) => {
+                                // TODO(Micu Ana): Add error handling
+                                return Err(errors::TockloaderError::IOError(e));
+                            }
+                        }
+                    }
+
+                    // De-escape and add array of read in the bytes
+                    for i in 0..(new_data.len() - 1) {
+                        if new_data[i] == ESCAPE_CHAR {
+                            if new_data[i + 1] == ESCAPE_CHAR {
+                                new_data.remove(i + 1);
+                            }
+                        }
+                    }
+
+                    for i in 0..new_data.len() {
+                        ret.push(new_data[i]);
+                    } 
+                }
+
+                Err(e) => {
+                    // TODO(Micu Ana): Add error handling
+                    return Err(errors::TockloaderError::IOError(e));
+                }
+
+            }
+        }
+
+        if ret.len() != (2 + response_len) {
+            // TODO(Micu Ana): Add error handling
+            return Ok(Response::from(ret[1]));
+        }
+
+        Ok(Response::from(ret[1]))
     }
 }
