@@ -142,7 +142,7 @@ impl BootloaderSerial {
         }
 
         // Write the command message
-        self.port.as_mut().unwrap().try_write(&message);
+        let _ = self.port.as_mut().unwrap().try_write(&message);
 
         // Response has a two byte header, then response_len bytes
         let _bytes_to_read = 2 + response_len;
