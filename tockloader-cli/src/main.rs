@@ -58,13 +58,13 @@ async fn run() -> Result<(), TockloaderError> {
             let probe = select_probe();
             match probe {
                 Ok(probe) => {
-                    let attributes = info_probe(
+                    let mut attributes = info_probe(
                         probe,
                         sub_matches.get_one::<String>("chip").unwrap(),
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
                     .await;
-                    print_info(&mut attributes.apps.unwrap(), &mut attributes.general.unwrap()).await;
+                    print_info(&mut attributes.apps, &mut attributes.general).await;
                 }
                 Err(err) => println!("{}", err),
             }

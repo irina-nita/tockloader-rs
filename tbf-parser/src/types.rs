@@ -835,7 +835,7 @@ impl TbfHeader {
         match *self {
             TbfHeader::TbfHeaderV2(hd) => {
                 // Bit 2 of flags is the sticky bit.
-                (hd.base.flags >> 1) & 0x00000001 == 1
+                hd.base.flags & 0x00000002 != 0
             }
             TbfHeader::Padding(_) => false,
         }
@@ -844,9 +844,7 @@ impl TbfHeader {
     /// Return total size of the application.
     pub fn total_size(&self) -> u32 {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.base.total_size
-            }
+            TbfHeader::TbfHeaderV2(hd) => hd.base.total_size,
             TbfHeader::Padding(_) => 0,
         }
     }
@@ -854,19 +852,15 @@ impl TbfHeader {
     /// Return checksum of the application.
     pub fn checksum(&self) -> u32 {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.base.checksum
-            }
+            TbfHeader::TbfHeaderV2(hd) => hd.base.checksum,
             TbfHeader::Padding(_) => 0,
         }
     }
 
-     /// Return header size of the application.
-     pub fn header_size(&self) -> u16 {
+    /// Return header size of the application.
+    pub fn header_size(&self) -> u16 {
         match *self {
-            TbfHeader::TbfHeaderV2(hd) => {
-                hd.base.header_size
-            }
+            TbfHeader::TbfHeaderV2(hd) => hd.base.header_size,
             TbfHeader::Padding(_) => 0,
         }
     }

@@ -3,49 +3,48 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 use tockloader_lib::attributes::{
-    app_attributes::AppAttributes, general_attributes::GeneralAttributes,
+    app_attributes::AppAttributes, system_attributes::GeneralAttributes,
 };
 
 pub async fn print_list(app_details: &mut [AppAttributes]) {
-    
-            for (i, temp_data) in app_details.iter().enumerate() {
-                println!("\n\x1b[0m\x1b[1;35m ┏━━━━━━━━━━━━━━━━┓");
-                println!(
-                    "\x1b[0m\x1b[1;31m ┃ \x1b[0m\x1b[1;32m App_{:<9?} \x1b[0m\x1b[1;31m┃",
-                    i
-                );
-                println!("\x1b[0m\x1b[1;33m ┗━━━━━━━━━━━━━━━━┛");
-                println!(
-                    "\n \x1b[1;32m Name:                {}",
-                    temp_data.tbf_header.get_package_name().unwrap()
-                );
+    for (i, temp_data) in app_details.iter().enumerate() {
+        println!("\n\x1b[0m\x1b[1;35m ┏━━━━━━━━━━━━━━━━┓");
+        println!(
+            "\x1b[0m\x1b[1;31m ┃ \x1b[0m\x1b[1;32m App_{:<9?} \x1b[0m\x1b[1;31m┃",
+            i
+        );
+        println!("\x1b[0m\x1b[1;33m ┗━━━━━━━━━━━━━━━━┛");
+        println!(
+            "\n \x1b[1;32m Name:                {}",
+            temp_data.tbf_header.get_package_name().unwrap()
+        );
 
-                println!(
-                    " \x1b[1;32m Version:             {}",
-                    temp_data.tbf_header.get_binary_version()
-                );
+        println!(
+            " \x1b[1;32m Version:             {}",
+            temp_data.tbf_header.get_binary_version()
+        );
 
-                println!(
-                    " \x1b[1;32m Enabled:             {}",
-                    temp_data.tbf_header.enabled()
-                );
+        println!(
+            " \x1b[1;32m Enabled:             {}",
+            temp_data.tbf_header.enabled()
+        );
 
-                println!(
-                    " \x1b[1;32m Sticky:              {}",
-                    temp_data.tbf_header.sticky()
-                );
+        println!(
+            " \x1b[1;32m Sticky:              {}",
+            temp_data.tbf_header.sticky()
+        );
 
-                println!(
-                    " \x1b[1;32m Total_Size:          {}\n\n",
-                    temp_data.tbf_header.total_size()
-                );
-            }
-
-            
+        println!(
+            " \x1b[1;32m Total_Size:          {}\n\n",
+            temp_data.tbf_header.total_size()
+        );
+    }
 }
 
-
-pub async fn print_info(app_details: &mut [AppAttributes], general_details: &mut GeneralAttributes) {
+pub async fn print_info(
+    app_details: &mut [AppAttributes],
+    general_details: &mut GeneralAttributes,
+) {
     for (i, temp_data) in app_details.iter().enumerate() {
         println!("\n\x1b[0m\x1b[1;35m ┏━━━━━━━━━━━━━━━━┓");
         println!(
@@ -81,7 +80,6 @@ pub async fn print_info(app_details: &mut [AppAttributes], general_details: &mut
         println!(
             " \x1b[1;32m Address in Flash:  {:<10}",
             general_details.appaddr.unwrap()
-
         );
 
         println!(
@@ -115,9 +113,7 @@ pub async fn print_info(app_details: &mut [AppAttributes], general_details: &mut
             temp_data.tbf_header.sticky()
         );
 
-        println!(
-            " \x1b[1;32m    TVL: Main (1)",
-        );
+        println!(" \x1b[1;32m    TVL: Main (1)",);
 
         println!(
             " \x1b[1;32m        init_fn_offset:             {:<10}",
@@ -134,9 +130,7 @@ pub async fn print_info(app_details: &mut [AppAttributes], general_details: &mut
             temp_data.tbf_header.get_minimum_app_ram_size()
         );
 
-        println!(
-            " \x1b[1;32m    TVL: Program (9)",
-        );
+        println!(" \x1b[1;32m    TVL: Program (9)",);
 
         println!(
             " \x1b[1;32m        init_fn_offset:             {:<10}",
@@ -163,18 +157,14 @@ pub async fn print_info(app_details: &mut [AppAttributes], general_details: &mut
             temp_data.tbf_header.get_binary_version()
         );
 
-        println!(
-            " \x1b[1;32m    TVL: Package Name (3)",
-        );
+        println!(" \x1b[1;32m    TVL: Package Name (3)",);
 
         println!(
             " \x1b[1;32m        package_name:               {:<10}",
             temp_data.tbf_header.get_package_name().unwrap()
         );
 
-        println!(
-            " \x1b[1;32m    TVL: Kernel Version (8)",
-        );
+        println!(" \x1b[1;32m    TVL: Kernel Version (8)",);
 
         println!(
             " \x1b[1;32m        kernel_major:               {:<10}",
@@ -191,6 +181,9 @@ pub async fn print_info(app_details: &mut [AppAttributes], general_details: &mut
             temp_data.tbf_header.get_kernel_version().unwrap().0,
             temp_data.tbf_header.get_kernel_version().unwrap().1
         );
+
+        //TODO(NegrilaRares): Remake the whole footer part
+        //take multiple into consideration
 
         // println!("\n \x1b[1;32m    Footer");
         //

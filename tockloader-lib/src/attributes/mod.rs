@@ -3,6 +3,6 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 pub mod app_attributes;
-pub mod general_attributes;
 pub mod decode;
-pub mod attributes;
+pub mod general_attributes;
+pub mod system_attributes;

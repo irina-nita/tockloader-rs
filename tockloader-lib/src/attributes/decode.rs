@@ -12,7 +12,7 @@ impl DecodedAttribute {
     pub(crate) fn new(decoded_key: String, decoded_value: String) -> DecodedAttribute {
         DecodedAttribute {
             key: decoded_key,
-            value: decoded_value
+            value: decoded_value,
         }
     }
 }
