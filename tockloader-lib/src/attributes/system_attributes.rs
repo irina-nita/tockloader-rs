@@ -8,7 +8,7 @@ use probe_rs::{Core, MemoryInterface};
 use super::decode::{bytes_to_string, decode_attribute};
 
 #[derive(Debug)]
-pub struct GeneralAttributes {
+pub struct SystemAttributes {
     pub board: Option<String>,
     pub arch: Option<String>,
     pub appaddr: Option<u64>,
@@ -22,9 +22,9 @@ pub struct GeneralAttributes {
     pub kernel_bin_len: Option<u32>,
 }
 
-impl GeneralAttributes {
-    pub(crate) fn new() -> GeneralAttributes {
-        GeneralAttributes {
+impl SystemAttributes {
+    pub(crate) fn new() -> SystemAttributes {
+        SystemAttributes {
             board: None,
             arch: None,
             appaddr: None,
@@ -39,7 +39,7 @@ impl GeneralAttributes {
         }
     }
 
-    pub(crate) fn get_general_attributes(&mut self, board_core: &mut Core) {
+    pub(crate) fn get_system_attributes(&mut self, board_core: &mut Core) {
         let address = 0x600;
         let mut buf = [0u8; 64 * 16];
 

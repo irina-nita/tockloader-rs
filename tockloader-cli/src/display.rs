@@ -3,7 +3,7 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 use tockloader_lib::attributes::{
-    app_attributes::AppAttributes, system_attributes::GeneralAttributes,
+    app_attributes::AppAttributes, system_attributes::SystemAttributes,
 };
 
 pub async fn print_list(app_details: &mut [AppAttributes]) {
@@ -43,7 +43,7 @@ pub async fn print_list(app_details: &mut [AppAttributes]) {
 
 pub async fn print_info(
     app_details: &mut [AppAttributes],
-    general_details: &mut GeneralAttributes,
+    system_details: &mut SystemAttributes,
 ) {
     for (i, temp_data) in app_details.iter().enumerate() {
         println!("\n\x1b[0m\x1b[1;35m ┏━━━━━━━━━━━━━━━━┓");
@@ -79,7 +79,7 @@ pub async fn print_info(
 
         println!(
             " \x1b[1;32m Address in Flash:  {:<10}",
-            general_details.appaddr.unwrap()
+            system_details.appaddr.unwrap()
         );
 
         println!(
@@ -203,28 +203,28 @@ pub async fn print_info(
     println!("\n\n\x1b[1;32m Kernel Attributes");
     println!(
         "\x1b[1;32m     Sentinel:               {:<10}",
-        general_details.sentinel.clone().unwrap()
+        system_details.sentinel.clone().unwrap()
     );
     println!(
         "\x1b[1;32m     Version:                {:<10}",
-        general_details.kernel_version.unwrap()
+        system_details.kernel_version.unwrap()
     );
     println!("\x1b[1;32m KATLV: APP Memory");
     println!(
         "\x1b[1;32m     app_memory_start:       {:<10}",
-        general_details.app_mem_start.unwrap()
+        system_details.app_mem_start.unwrap()
     );
     println!(
         "\x1b[1;32m     app_memory_len:         {:<10}",
-        general_details.app_mem_len.unwrap()
+        system_details.app_mem_len.unwrap()
     );
     println!("\x1b[1;32m KATLV: Kernel Binary");
     println!(
         "\x1b[1;32m     kernel_binary_start:    {:<10}",
-        general_details.kernel_bin_start.unwrap()
+        system_details.kernel_bin_start.unwrap()
     );
     println!(
         "\x1b[1;32m     kernel_binary_len:      {:<10}\n\n",
-        general_details.kernel_bin_len.unwrap()
+        system_details.kernel_bin_len.unwrap()
     );
 }

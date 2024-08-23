@@ -64,7 +64,7 @@ async fn run() -> Result<(), TockloaderError> {
                         sub_matches.get_one::<usize>("core").unwrap(),
                     )
                     .await;
-                    print_info(&mut attributes.apps, &mut attributes.general).await;
+                    print_info(&mut attributes.apps, &mut attributes.system).await;
                 }
                 Err(err) => println!("{}", err),
             }

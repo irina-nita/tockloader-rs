@@ -2,21 +2,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use super::{app_attributes::AppAttributes, system_attributes::GeneralAttributes};
+use super::{app_attributes::AppAttributes, system_attributes::SystemAttributes};
 
 #[derive(Debug)]
-pub struct Attributes {
-    pub general: GeneralAttributes,
+pub struct GeneralAttributes {
+    pub system: SystemAttributes,
     pub apps: Vec<AppAttributes>,
 }
 
-impl Attributes {
+impl GeneralAttributes {
     pub(crate) fn new(
-        general_attributes: GeneralAttributes,
+        system_attributes: SystemAttributes,
         apps_attributes: Vec<AppAttributes>,
-    ) -> Attributes {
-        Attributes {
-            general: general_attributes,
+    ) -> GeneralAttributes {
+        GeneralAttributes {
+            system: system_attributes,
             apps: apps_attributes,
         }
     }

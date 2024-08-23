@@ -10,8 +10,6 @@ use tbf_parser::{
     types::TbfHeader,
 };
 
-// use super::general_attributes::get_appaddr;
-
 #[derive(Debug)]
 pub struct AppAttributes {
     pub tbf_header: TbfHeader,
