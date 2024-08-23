@@ -28,7 +28,11 @@ pub async fn list_probe(
     get_apps_data(&mut core, system_attributes.appaddr.unwrap())
 }
 
-pub async fn info_probe(choice: DebugProbeInfo, chip: &str, core_index: &usize) -> GeneralAttributes {
+pub async fn info_probe(
+    choice: DebugProbeInfo,
+    chip: &str,
+    core_index: &usize,
+) -> GeneralAttributes {
     let mut probe_session = ProbeSession::new(choice, chip);
 
     let mut core = probe_session.get_core(*core_index);

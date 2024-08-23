@@ -41,10 +41,7 @@ pub async fn print_list(app_details: &mut [AppAttributes]) {
     }
 }
 
-pub async fn print_info(
-    app_details: &mut [AppAttributes],
-    system_details: &mut SystemAttributes,
-) {
+pub async fn print_info(app_details: &mut [AppAttributes], system_details: &mut SystemAttributes) {
     for (i, temp_data) in app_details.iter().enumerate() {
         println!("\n\x1b[0m\x1b[1;35m ┏━━━━━━━━━━━━━━━━┓");
         println!(
