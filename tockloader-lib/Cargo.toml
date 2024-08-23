@@ -14,3 +14,4 @@ probe-rs = "0.24.0"
 tbf-parser = { path = "../tbf-parser"}
 utf8-decode = "1.0.1"
 byteorder = "1.5.0"
+tar = "0.4.41"
