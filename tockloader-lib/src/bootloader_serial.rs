@@ -15,6 +15,7 @@ pub const SYNC_MESSAGE: [u8; 3] = [0x00, 0xFC, 0x05];
 // "This was chosen as it is infrequent in .bin files" - immesys
 pub const ESCAPE_CHAR: u8 = 0xFC;
 
+#[allow(dead_code)]
 pub enum Command {
     // Commands from this tool to the bootloader
     CommandPing = 0x01,
@@ -90,6 +91,7 @@ impl From<u8> for Response {
     }
 }
 
+#[allow(dead_code)]
 pub struct BootloaderSerial {
     port: Option<SerialStream>,
 }
@@ -115,6 +117,7 @@ impl BootloaderSerial {
         }
     }
 
+    #[allow(dead_code)]
     pub fn issue_command(
         &mut self,
         command: Command,
