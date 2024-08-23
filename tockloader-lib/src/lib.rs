@@ -4,6 +4,7 @@
 
 pub mod attributes;
 mod board_settings;
+mod bootloader_serial;
 mod errors;
 pub mod probe_session;
 pub mod tabs;
