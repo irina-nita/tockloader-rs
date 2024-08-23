@@ -32,7 +32,7 @@ impl AppAttributes {
             let mut appdata = vec![0u8; 8];
 
             // Do not ignore the result of the read operation
-            let _ = board_core.read(appaddr, &mut appdata).unwrap();
+            board_core.read(appaddr, &mut appdata).unwrap();
 
             let tbf_version: u16;
             let header_size: u16;
@@ -50,7 +50,7 @@ impl AppAttributes {
             let mut header_data = vec![0u8; header_size as usize];
 
             // Do not ignore the result of the read operation
-            let _ = board_core.read(appaddr, &mut header_data).unwrap();
+            board_core.read(appaddr, &mut header_data).unwrap();
 
             let header: TbfHeader = parse_tbf_header(&header_data, tbf_version)
                 .unwrap_or_else(|e| panic!("Error found while getting tbf header data: {:?}", e));

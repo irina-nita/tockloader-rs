@@ -107,7 +107,7 @@ impl SystemAttributes {
         result.bootloader_version = Some(string.to_owned());
 
         let mut kernel_attr_binary = [0u8; 100];
-        let _ = board_core
+        board_core
             .read(result.appaddr.unwrap() - 100, &mut kernel_attr_binary)
             .unwrap();
 
