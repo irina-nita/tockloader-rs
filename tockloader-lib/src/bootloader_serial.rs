@@ -216,10 +216,14 @@ impl BootloaderSerial {
         let mut new_data: Vec<u8> = Vec::new();
 
         while bytes_to_read - ret.len() > 0 {
-            match self.port.as_mut().unwrap().try_read(&mut new_data[0..(bytes_to_read - ret.len())]) {
-
+            match self
+                .port
+                .as_mut()
+                .unwrap()
+                .try_read(&mut new_data[0..(bytes_to_read - ret.len())])
+            {
                 Ok(value) => {
-                    // Odd number of escape characters 
+                    // Odd number of escape characters
                     // These can only come in pairs, so read another byte
                     let mut count = 0;
                     for i in 0..value {
@@ -230,7 +234,6 @@ impl BootloaderSerial {
                     if count % 2 == 1 {
                         let byte: u8 = 0;
                         match self.port.as_mut().unwrap().try_read(&mut [byte]) {
-                            
                             Ok(_) => {
                                 new_data.push(byte);
                             }
@@ -253,14 +256,13 @@ impl BootloaderSerial {
 
                     for i in 0..new_data.len() {
                         ret.push(new_data[i]);
-                    } 
+                    }
                 }
 
                 Err(e) => {
                     // TODO(Micu Ana): Add error handling
                     return Err(errors::TockloaderError::IOError(e));
                 }
-
             }
         }
 
