@@ -3,6 +3,7 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 pub mod attributes;
+mod bootloader_serial;
 mod errors;
 pub mod probe_session;
 

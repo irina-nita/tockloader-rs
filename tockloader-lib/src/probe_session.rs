@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
+use crate::bootloader_serial::BootloaderSerial;
 use probe_rs::probe::DebugProbeInfo;
 use probe_rs::{Core, Permissions, Session};
-use std::time::Duration;
-use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortType, SerialStream, StopBits};
+use tokio_serial::SerialPortType;
 
 pub struct ProbeSession {
     pub session: Option<Session>,
@@ -21,24 +21,11 @@ impl ProbeSession {
             session = Some(probe.attach(chip, Permissions::default()).unwrap());
         }
         let ports = tokio_serial::available_ports().unwrap();
-        for port in ports {
-            if let SerialPortType::UsbPort(inner) = port.port_type {
-                if inner.serial_number.unwrap() == serial_nr {
-                    // Open port and configure it with tokio_serial
-                    let builder = tokio_serial::new(port.port_name, 115200);
-                    match SerialStream::open(&builder) {
-                        Ok(mut port) => {
-                            port.set_parity(Parity::None).unwrap();
-                            port.set_stop_bits(StopBits::One).unwrap();
-                            port.set_flow_control(FlowControl::None).unwrap();
-                            port.set_timeout(Duration::from_millis(500)).unwrap();
-                            port.write_request_to_send(false).unwrap();
-                            port.write_data_terminal_ready(false).unwrap();
-                        }
-                        Err(_e) => {
-                            //TODO(Micu Ana): Add error handling
-                        }
-                    }
+        for port_info in ports {
+            if let SerialPortType::UsbPort(ref inner) = port_info.port_type {
+                if inner.serial_number.as_deref().unwrap() == serial_nr {
+                    // Open port using the port info found
+                    let _port = BootloaderSerial::new(port_info);
                 }
             }
         }
