@@ -40,7 +40,7 @@ fn get_subcommands() -> Vec<Command> {
             .about("Install apps")
             .args(get_app_args())
             .args(get_channel_args())
-            .arg_required_else_help(false),
+            .arg_required_else_help(true),
     ]
 }
 

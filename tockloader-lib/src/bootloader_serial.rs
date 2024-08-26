@@ -43,6 +43,7 @@ pub enum Command {
 }
 
 #[derive(Clone)]
+#[derive(Debug)]
 pub enum Response {
     // Responses from the bootloader
     ResponseOverflow = 0x10,
@@ -119,7 +120,7 @@ impl BootloaderSerial {
     }
 
     #[allow(dead_code)]
-    pub fn issue_command(
+    pub async fn issue_command(
         &mut self,
         command: Command,
         mut message: Vec<u8>,
@@ -146,7 +147,10 @@ impl BootloaderSerial {
         }
 
         // Write the command message
-        let _ = self.port.as_mut().unwrap().try_write(&message);
+        let writable_res = self.port.as_mut().unwrap().writable().await;
+        if let Ok(()) = writable_res {
+            let _ = self.port.as_mut().unwrap().try_write(&message);
+        }
 
         // Response has a two byte header, then response_len bytes
         let bytes_to_read = 2 + response_len;
@@ -154,55 +158,51 @@ impl BootloaderSerial {
         // Loop to read in that number of bytes starting with the header
         let mut ret: Vec<u8> = vec![0; 2];
 
-        // Receive the header bytes trying up to three times
-        for attempt in 0..3 {
             // We assume that try_read() method doesn't read more than 2 bytes, based on the fact that
             // if the return value of this method is [Ok(n)], then implementations must guarantee at
             // least on Linux that 0 <= n <= ret.len()
-            // We check if we got two bytes, otherwise we try to read again
+        let readable_res = self.port.as_mut().unwrap().readable().await;
+        if let Ok(()) = readable_res {
             match self.port.as_mut().unwrap().try_read(&mut ret[0..2]) {
-                // If there are two values, we stop reading
-                Ok(2) => break,
-
+                Ok(2) => {
+                    println!("pare ok");
+                    dbg!(&ret);
+                },
+    
                 // This error handling is temmporary
                 // TODO(Micu Ana): Add error handling
                 // We have to stop at this point since otherwise
                 // we loop waiting on data we will not get.
                 Ok(0) => {
-                    // We verify if it is the last attempt
-                    if attempt != 2 {
-                        continue;
-                    } else {
-                        // As it is no value we have nothing to return
-                        return Err(errors::TockloaderError::IOError(
-                            ErrorKind::InvalidData.into(),
-                        ));
-                    }
+                    // As it is no value we have nothing to return
+                    println!("no byte read");
+                    return Err(errors::TockloaderError::IOError(
+                        ErrorKind::InvalidData.into(),
+                    ));
                 }
                 Ok(1) => {
-                    // We verify if it is the last attempt
-                    if attempt != 2 {
-                        continue;
-                    } else {
-                        // As it is only one value(response code) we want to return it
-                        return Ok(Response::from(ret[0]));
-                    }
+                    println!("1 byte read");
+                    return Ok(Response::from(ret[0]));
                 }
-
+    
                 // This error handling is temmporary
                 // TODO(Micu Ana): Add error handling
                 Err(e) => {
+                    println!("just error on attempt");
+                    dbg!(ret);
                     return Err(errors::TockloaderError::IOError(e));
                 }
-
+    
                 // We should never end up in this case, as we can't read more than 2 values
                 _ => {
+                    println!("nasol rau");
                     return Err(errors::TockloaderError::IOError(
                         ErrorKind::InvalidData.into(),
                     ));
                 }
             }
-        }
+        } 
+
         if ret[0] != ESCAPE_CHAR {
             //TODO(Micu Ana): Add error handling
             return Ok(Response::from(ret[1]));
@@ -219,7 +219,7 @@ impl BootloaderSerial {
             match self
                 .port
                 .as_mut()
-                .unwrap()
+                .unwrap()           
                 .try_read(&mut new_data[0..(bytes_to_read - ret.len())])
             {
                 Ok(value) => {

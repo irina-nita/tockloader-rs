@@ -123,45 +123,43 @@ impl Tab {
                         let name_vec = name_pieces.collect::<Vec<&str>>();
                         if name_vec.len() >= 2 && name_vec[name_vec.len() - 1] == "tbf" {
                             if name_vec[0] == arch.clone().unwrap() {
-                                continue;
+                                let mut data = Vec::new();
+                                entry.read_to_end(&mut data).unwrap();
+                                let (_ver, header_len, whole_len) =
+                                    parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
+                                        .ok()
+                                        .unwrap();
+
+                                let header = parse_tbf_header(&data[0..header_len as usize], 2).unwrap();
+
+                                // TODO(Micu Ana): handle error if whole_len < data.len()
+
+                                let start_of_app_binary =
+                                    (header_len as u32 + header.get_protected_size()) as usize;
+                                let start_of_footers = header.get_binary_end() as usize;
+                                let binary = data[start_of_app_binary..start_of_footers].to_vec();
+
+                                let binary_offset = header.get_binary_end() as usize;
+                                let (footer, _footer_size) = parse_tbf_footer(&data[binary_offset..]).unwrap();
+
+                                let app = TabTbf::new(
+                                    entry
+                                        .path()
+                                        .unwrap()
+                                        .file_name()
+                                        .unwrap()
+                                        .to_str()
+                                        .unwrap()
+                                        .to_string(),
+                                    header,
+                                    binary,
+                                    footer,
+                                    whole_len as usize,
+                                );
+                                return Some(app);
                             }
                         }
-                    }
-                    let mut data = Vec::new();
-                    entry.read_to_end(&mut data).unwrap();
-
-                    let (_ver, header_len, whole_len) =
-                        parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
-                            .ok()
-                            .unwrap();
-
-                    let header = parse_tbf_header(&data[0..header_len as usize], 2).unwrap();
-
-                    // TODO(Micu Ana): handle error if whole_len < data.len()
-
-                    let start_of_app_binary =
-                        (header_len as u32 + header.get_protected_size()) as usize;
-                    let start_of_footers = header.get_binary_end() as usize;
-                    let binary = data[start_of_app_binary..start_of_footers].to_vec();
-
-                    let binary_offset = header.get_binary_end() as usize;
-                    let (footer, _footer_size) = parse_tbf_footer(&data[binary_offset..]).unwrap();
-
-                    let app = TabTbf::new(
-                        entry
-                            .path()
-                            .unwrap()
-                            .file_name()
-                            .unwrap()
-                            .to_str()
-                            .unwrap()
-                            .to_string(),
-                        header,
-                        binary,
-                        footer,
-                        whole_len as usize,
-                    );
-                    return Some(app);
+                    } 
                 }
                 Err(e) => {
                     println!("Can't open entry in tab: {:?}", e);

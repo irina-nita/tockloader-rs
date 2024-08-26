@@ -16,6 +16,9 @@ use probe_rs::probe::DebugProbeInfo;
 use probe_rs::MemoryInterface;
 use probe_session::ProbeSession;
 
+use bootloader_serial::Response;
+use crate::bootloader_serial::Command;
+
 use errors::TockloaderError;
 use tabs::tab::Tab;
 use tbf_parser::parse::parse_tbf_header_lengths;
@@ -123,6 +126,9 @@ pub async fn install_app(
         (address, 0)
     };
 
+    // No more need of core
+    drop(core);
+
     // Make sure the binary is a multiple of the page size by padding 0xFFs
     // TODO(Micu Ana): check if the page-size differs
     let page_size = 512;
@@ -143,17 +149,23 @@ pub async fn install_app(
     // Get indices of pages that have valid data to write
     let valid_pages: Vec<u8> = app.get_valid_pages(binary_len, page_size);
 
-    for i in valid_pages {
-        // Create the packet that we send to the bootloader
-        // First four bytes are the address of the page
-        let mut pkt = (new_address + page_size as u64).to_le_bytes().to_vec();
-
-        // Then the bytes that go into the page
-        for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
-            pkt.push(b);
+    if let Some(port) = probe_session.port.as_mut() {
+        for i in valid_pages {
+            // Create the packet that we send to the bootloader
+            // First four bytes are the address of the page
+            let mut pkt = (new_address + page_size as u64).to_le_bytes().to_vec();
+    
+            // Then the bytes that go into the page
+            for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
+                pkt.push(b);
+            }
+    
+            // Write to bootloader
+            let response = port.issue_command(Command::CommandPing, vec![], true, 0, Response::ResponsePong).await.unwrap();
+            dbg!(response);
         }
-
-        // TODO(Micu Ana): Write to bootloader
+    } else {
+        // TODO(Micu Ana): Add error handling: Handle the case where `port` is None
     }
 
     Ok(())
