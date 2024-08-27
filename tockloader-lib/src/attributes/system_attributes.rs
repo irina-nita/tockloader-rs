@@ -45,7 +45,8 @@ impl SystemAttributes {
         let address = 0x600;
         let mut buf = [0u8; 64 * 16];
 
-        let _ = board_core.read(address, &mut buf);
+        println!("Reading system attributes");
+        let _ = board_core.read_8(address, &mut buf);
 
         let mut data = buf.chunks(64);
 
@@ -93,6 +94,7 @@ impl SystemAttributes {
 
         let mut buf = [0u8; 8];
 
+        println!("Reading bootloader version");
         let _ = board_core.read_8(address, &mut buf);
 
         let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
