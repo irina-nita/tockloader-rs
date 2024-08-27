@@ -6,7 +6,7 @@
 
 use crate::errors;
 use errors::TockloaderError;
-use std::{io::ErrorKind, time::Duration};
+use std::{io::{ErrorKind, Read}, time::Duration};
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortInfo, SerialStream, StopBits};
 
 // Tell the bootloader to reset its buffer to handle a new command
@@ -128,8 +128,8 @@ impl BootloaderSerial {
         response_len: usize,
         response_code: Response,
     ) -> Result<Response, TockloaderError> {
+        while let Ok(_) = self.port.as_mut().unwrap().read(&mut [0; 32]) {}
         //Setup a command to send to the bootloader and handle the response
-
         // Generate the message to send to the bootloader
         for i in 0..message.len() {
             if message[i] == ESCAPE_CHAR {
@@ -139,6 +139,7 @@ impl BootloaderSerial {
         }
         message.push(command as u8);
 
+
         // If there should be a sync/reset message, prepend the outgoing message with it
         if sync {
             message.insert(0, SYNC_MESSAGE[0]);
@@ -147,7 +148,9 @@ impl BootloaderSerial {
         }
 
         // Write the command message
+        println!("Waiting for port to become writable");
         let writable_res = self.port.as_mut().unwrap().writable().await;
+        println!("Writing {:?}", message);
         if let Ok(()) = writable_res {
             let _ = self.port.as_mut().unwrap().try_write(&message);
         }
@@ -156,14 +159,17 @@ impl BootloaderSerial {
         let bytes_to_read = 2 + response_len;
 
         // Loop to read in that number of bytes starting with the header
-        let mut ret: Vec<u8> = vec![0; 2];
+        let mut ret: Vec<u8> = vec![0; 10];
 
             // We assume that try_read() method doesn't read more than 2 bytes, based on the fact that
             // if the return value of this method is [Ok(n)], then implementations must guarantee at
             // least on Linux that 0 <= n <= ret.len()
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+        
+        println!("Waiting for port to become readable");
         let readable_res = self.port.as_mut().unwrap().readable().await;
         if let Ok(()) = readable_res {
-            match self.port.as_mut().unwrap().try_read(&mut ret[0..2]) {
+            match self.port.as_mut().unwrap().try_read(&mut ret[0..10]) {
                 Ok(2) => {
                     println!("pare ok");
                     dbg!(&ret);
@@ -188,13 +194,14 @@ impl BootloaderSerial {
                 // This error handling is temmporary
                 // TODO(Micu Ana): Add error handling
                 Err(e) => {
-                    println!("just error on attempt");
+                    println!("just error on attempt: {:?}", e);
                     dbg!(ret);
                     return Err(errors::TockloaderError::IOError(e));
                 }
     
                 // We should never end up in this case, as we can't read more than 2 values
                 _ => {
+                    dbg!(ret);
                     println!("nasol rau");
                     return Err(errors::TockloaderError::IOError(
                         ErrorKind::InvalidData.into(),
