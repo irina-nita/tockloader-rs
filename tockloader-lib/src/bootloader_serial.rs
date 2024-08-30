@@ -5,8 +5,12 @@
 // The "X" commands are for external flash
 
 use crate::errors;
+use bytes::BytesMut;
 use errors::TockloaderError;
-use std::{io::{ErrorKind, Read}, time::Duration};
+use std::io::ErrorKind;
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio_serial::SerialPortBuilderExt;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialPortInfo, SerialStream, StopBits};
 
 // Tell the bootloader to reset its buffer to handle a new command
@@ -42,8 +46,7 @@ pub enum Command {
     CommandSetStartAddress = 0x23,
 }
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Response {
     // Responses from the bootloader
     ResponseOverflow = 0x10,
@@ -101,8 +104,7 @@ pub struct BootloaderSerial {
 impl BootloaderSerial {
     pub fn new(port: SerialPortInfo) -> Self {
         // Open port and configure it with default settings using tokio_serial
-        let builder = tokio_serial::new(port.port_name, 115200);
-        match SerialStream::open(&builder) {
+        match tokio_serial::new(port.port_name, 115200).open_native_async() {
             Ok(mut port) => {
                 port.set_parity(Parity::None).unwrap();
                 port.set_stop_bits(StopBits::One).unwrap();
@@ -128,17 +130,21 @@ impl BootloaderSerial {
         response_len: usize,
         response_code: Response,
     ) -> Result<Response, TockloaderError> {
-        while let Ok(_) = self.port.as_mut().unwrap().read(&mut [0; 32]) {}
-        //Setup a command to send to the bootloader and handle the response
+        // Setup a command to send to the bootloader and handle the response
         // Generate the message to send to the bootloader
-        for i in 0..message.len() {
+        let mut i = 0;
+        while i < message.len() {
             if message[i] == ESCAPE_CHAR {
                 // Escaped by replacing all 0xFC with two consecutive 0xFC - tock bootloader readme
                 message.insert(i + 1, ESCAPE_CHAR);
+                // Skip the inserted character
+                i += 2;
+            } else {
+                i += 1;
             }
         }
+        message.push(ESCAPE_CHAR);
         message.push(command as u8);
-
 
         // If there should be a sync/reset message, prepend the outgoing message with it
         if sync {
@@ -147,68 +153,58 @@ impl BootloaderSerial {
             message.insert(2, SYNC_MESSAGE[2]);
         }
 
+        println!("Want to write {} bytes.", message.len());
         // Write the command message
-        println!("Waiting for port to become writable");
-        let writable_res = self.port.as_mut().unwrap().writable().await;
-        println!("Writing {:?}", message);
-        if let Ok(()) = writable_res {
-            let _ = self.port.as_mut().unwrap().try_write(&message);
+        let mut bytes_written = 0;
+        while bytes_written != message.len() {
+            bytes_written += self
+                .port
+                .as_mut()
+                .unwrap()
+                .write(&message[bytes_written..])
+                .await?;
         }
+        println!("Wrote {} bytes", bytes_written);
 
         // Response has a two byte header, then response_len bytes
         let bytes_to_read = 2 + response_len;
+        let mut ret = BytesMut::with_capacity(2);
 
-        // Loop to read in that number of bytes starting with the header
-        let mut ret: Vec<u8> = vec![0; 10];
-
-            // We assume that try_read() method doesn't read more than 2 bytes, based on the fact that
-            // if the return value of this method is [Ok(n)], then implementations must guarantee at
-            // least on Linux that 0 <= n <= ret.len()
-        tokio::time::sleep(Duration::from_millis(1000)).await;
-        
-        println!("Waiting for port to become readable");
-        let readable_res = self.port.as_mut().unwrap().readable().await;
-        if let Ok(()) = readable_res {
-            match self.port.as_mut().unwrap().try_read(&mut ret[0..10]) {
-                Ok(2) => {
-                    println!("pare ok");
-                    dbg!(&ret);
-                },
-    
-                // This error handling is temmporary
-                // TODO(Micu Ana): Add error handling
-                // We have to stop at this point since otherwise
-                // we loop waiting on data we will not get.
-                Ok(0) => {
-                    // As it is no value we have nothing to return
-                    println!("no byte read");
-                    return Err(errors::TockloaderError::IOError(
-                        ErrorKind::InvalidData.into(),
-                    ));
-                }
-                Ok(1) => {
-                    println!("1 byte read");
-                    return Ok(Response::from(ret[0]));
-                }
-    
-                // This error handling is temmporary
-                // TODO(Micu Ana): Add error handling
-                Err(e) => {
-                    println!("just error on attempt: {:?}", e);
-                    dbg!(ret);
-                    return Err(errors::TockloaderError::IOError(e));
-                }
-    
-                // We should never end up in this case, as we can't read more than 2 values
-                _ => {
-                    dbg!(ret);
-                    println!("nasol rau");
-                    return Err(errors::TockloaderError::IOError(
-                        ErrorKind::InvalidData.into(),
-                    ));
-                }
+        // We are waiting for 2 bytes to be read
+        let read_bytes = self.port.as_mut().unwrap().read_buf(&mut ret).await?;
+        println!("Read {} bytes", read_bytes);
+        println!("{:?}", ret);
+        match read_bytes {
+            2 => {
+                println!("pare ok");
+                dbg!(&ret);
             }
-        } 
+
+            // This error handling is temmporary
+            // TODO(Micu Ana): Add error handling
+            // We have to stop at this point since otherwise
+            // we loop waiting on data we will not get.
+            0 => {
+                // As it is no value we have nothing to return
+                println!("no byte read");
+                return Err(errors::TockloaderError::IOError(
+                    ErrorKind::InvalidData.into(),
+                ));
+            }
+            1 => {
+                println!("1 byte read");
+                return Ok(Response::from(ret[0]));
+            }
+
+            // We should never end up in this case, as we can't read more than 2 values
+            _ => {
+                dbg!(ret);
+                println!("nasol rau");
+                return Err(errors::TockloaderError::IOError(
+                    ErrorKind::InvalidData.into(),
+                ));
+            }
+        }
 
         if ret[0] != ESCAPE_CHAR {
             //TODO(Micu Ana): Add error handling
@@ -226,7 +222,7 @@ impl BootloaderSerial {
             match self
                 .port
                 .as_mut()
-                .unwrap()           
+                .unwrap()
                 .try_read(&mut new_data[0..(bytes_to_read - ret.len())])
             {
                 Ok(value) => {
@@ -261,9 +257,7 @@ impl BootloaderSerial {
                         }
                     }
 
-                    for i in 0..new_data.len() {
-                        ret.push(new_data[i]);
-                    }
+                    ret.extend_from_slice(&new_data);
                 }
 
                 Err(e) => {

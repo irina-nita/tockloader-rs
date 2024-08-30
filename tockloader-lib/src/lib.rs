@@ -16,8 +16,8 @@ use probe_rs::probe::DebugProbeInfo;
 use probe_rs::MemoryInterface;
 use probe_session::ProbeSession;
 
-use bootloader_serial::Response;
 use crate::bootloader_serial::Command;
+use bootloader_serial::Response;
 
 use errors::TockloaderError;
 use tabs::tab::Tab;
@@ -91,6 +91,8 @@ pub async fn install_app(
     }
 
     // Get the address from which we start writing the new app
+    // TODO: change appaddr to 32 bit
+    // TODO for the future: support 64 bit arhitecture
     let mut address: u64 = system_attributes.appaddr.unwrap();
 
     loop {
@@ -112,10 +114,11 @@ pub async fn install_app(
         address += whole_len as u64;
     }
 
+    dbg!(address);
     // Create app object
     let app = tab_file.extract_app(system_attributes.arch).unwrap();
     let size = app.get_size() as u64;
-
+    dbg!(size);
     // Make sure the app is aligned to a multiple of its size
     let multiple = address / size;
     let (new_address, gap_size) = if multiple * size != address {
@@ -126,42 +129,70 @@ pub async fn install_app(
         (address, 0)
     };
 
+    let mut app = app;
+    if gap_size > 0 {
+        app.set_padding(gap_size);
+    }
+
+    dbg!(new_address);
     // No more need of core
     drop(core);
 
     // Make sure the binary is a multiple of the page size by padding 0xFFs
     // TODO(Micu Ana): check if the page-size differs
     let page_size = 512;
-    let binary = app.get_app_binary();
+    let mut binary = app.get_app_binary();
     let binary_len = binary.len();
+    dbg!(binary_len);
     let needs_padding = binary_len % page_size != 0;
 
-    let mut app = app;
-    if gap_size > 0 {
-        app.set_padding(gap_size);
-    }
+    dbg!(needs_padding);
 
     if needs_padding {
         let remaining = page_size - (binary_len % page_size);
+        dbg!(remaining);
         app.add_padding_to_app_binary(remaining);
     }
 
+    // Get the new binary
+    binary = app.get_app_binary();
+
     // Get indices of pages that have valid data to write
     let valid_pages: Vec<u8> = app.get_valid_pages(binary_len, page_size);
+    dbg!(valid_pages.clone());
 
     if let Some(port) = probe_session.port.as_mut() {
         for i in valid_pages {
+            println!("Writing page number {}", i);
             // Create the packet that we send to the bootloader
             // First four bytes are the address of the page
-            let mut pkt = (new_address + page_size as u64).to_le_bytes().to_vec();
-    
+            let mut pkt = (new_address as u32 + (i as usize * page_size) as u32)
+                .to_le_bytes()
+                .to_vec();
+            dbg!(pkt.clone());
+
+            dbg!(
+                binary[(i as usize * page_size)..((i + 1) as usize * page_size)]
+                    .to_vec()
+                    .len()
+            );
             // Then the bytes that go into the page
             for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
                 pkt.push(b);
             }
-    
+            // dbg!(pkt.clone());
+
             // Write to bootloader
-            let response = port.issue_command(Command::CommandPing, vec![], true, 0, Response::ResponsePong).await.unwrap();
+            let response = port
+                .issue_command(
+                    Command::CommandWritePage,
+                    pkt,
+                    true,
+                    0,
+                    Response::ResponseOK,
+                )
+                .await
+                .unwrap();
             dbg!(response);
         }
     } else {

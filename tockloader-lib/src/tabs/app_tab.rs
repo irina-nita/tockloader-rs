@@ -6,7 +6,6 @@ use tbf_parser::types::{TbfFooterV2Credentials, TbfHeader};
 
 #[allow(dead_code)]
 pub struct TabTbf {
-    filename: String,
     tbfh: TbfHeader,
     app_binary: Vec<u8>,
     tbff: TbfFooterV2Credentials,
@@ -16,14 +15,12 @@ pub struct TabTbf {
 
 impl TabTbf {
     pub fn new(
-        filename: String,
         tbfh: TbfHeader,
         app_binary: Vec<u8>,
         tbff: TbfFooterV2Credentials,
         size: usize,
     ) -> Self {
         TabTbf {
-            filename,
             tbfh,
             app_binary,
             tbff,
@@ -39,6 +36,8 @@ impl TabTbf {
     pub fn get_app_binary(&self) -> Vec<u8> {
         return self.app_binary.clone();
     }
+
+    
 
     pub fn add_padding_to_app_binary(&mut self, remaining: usize) {
         for _i in 0..remaining {

@@ -27,7 +27,7 @@ impl ProbeSession {
         }
 
         let probe_session = session.expect("Couldn't create a session");
-        
+
         let ports = tokio_serial::available_ports().unwrap();
         for port_info in ports {
             if let SerialPortType::UsbPort(ref inner) = port_info.port_type {
@@ -37,14 +37,14 @@ impl ProbeSession {
                     return ProbeSession {
                         session: Some(probe_session),
                         port: Some(port),
-                    }
+                    };
                 }
             }
         }
-        
+
         ProbeSession {
             session: Some(probe_session),
-            port: None
+            port: None,
         }
     }
 
