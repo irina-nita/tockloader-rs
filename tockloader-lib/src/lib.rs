@@ -116,12 +116,35 @@ pub async fn install_app(
 
     dbg!(address);
     // Create app object
-    let app = tab_file.extract_app(system_attributes.arch).unwrap();
-    let size = app.get_size() as u64;
+    let app = tab_file.extract_app(system_attributes.arch.clone()).unwrap();
+    let header_binary = tab_file.extract_header_binary(system_attributes.arch.clone());
+    dbg!(header_binary.len());
+    let footer_binary = tab_file.extract_footer_binary(system_attributes.arch.clone());
+    dbg!(footer_binary.len());
+    let mut binary = app.get_app_binary();
+    dbg!(binary.len());
+
+    // Concatenate all binaries (header + app + footer)
+    let mut full_binary = Vec::new();
+    for i in header_binary {
+        full_binary.push(i);
+    }
+    for i in binary {
+        full_binary.push(i);
+    } 
+    for i in footer_binary {
+        full_binary.push(i);
+    } 
+
+    binary = full_binary;
+
+    let size = binary.len() as u64;
+
     dbg!(size);
+
     // Make sure the app is aligned to a multiple of its size
     let multiple = address / size;
-    let (new_address, gap_size) = if multiple * size != address {
+    let (mut new_address, gap_size) = if multiple * size != address {
         let new_address = ((address + size) / size) * size;
         let gap_size = new_address - address;
         (new_address, gap_size)
@@ -138,10 +161,10 @@ pub async fn install_app(
     // No more need of core
     drop(core);
 
+
     // Make sure the binary is a multiple of the page size by padding 0xFFs
     // TODO(Micu Ana): check if the page-size differs
     let page_size = 512;
-    let mut binary = app.get_app_binary();
     let binary_len = binary.len();
     dbg!(binary_len);
     let needs_padding = binary_len % page_size != 0;
@@ -151,14 +174,13 @@ pub async fn install_app(
     if needs_padding {
         let remaining = page_size - (binary_len % page_size);
         dbg!(remaining);
-        app.add_padding_to_app_binary(remaining);
+        for _i in 0..remaining {
+            binary.push(0xFF);
+        }
     }
 
-    // Get the new binary
-    binary = app.get_app_binary();
-
     // Get indices of pages that have valid data to write
-    let valid_pages: Vec<u8> = app.get_valid_pages(binary_len, page_size);
+    let valid_pages: Vec<u8> = app.get_valid_pages(binary_len, binary.clone(), page_size);
     dbg!(valid_pages.clone());
 
     if let Some(port) = probe_session.port.as_mut() {
@@ -170,12 +192,6 @@ pub async fn install_app(
                 .to_le_bytes()
                 .to_vec();
             dbg!(pkt.clone());
-
-            dbg!(
-                binary[(i as usize * page_size)..((i + 1) as usize * page_size)]
-                    .to_vec()
-                    .len()
-            );
             // Then the bytes that go into the page
             for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
                 pkt.push(b);
@@ -195,9 +211,31 @@ pub async fn install_app(
                 .unwrap();
             dbg!(response);
         }
+
+        new_address += binary.len() as u64;
+
+        let pkt = (new_address as u32)
+                .to_le_bytes()
+                .to_vec();
+        dbg!(pkt.clone());
+
+        let response = port
+                .issue_command(
+                    Command::CommandErasePage,
+                    pkt,
+                    true,
+                    0,
+                    Response::ResponseOK,
+                )
+                .await
+                .unwrap();
+        dbg!(response);
+
     } else {
         // TODO(Micu Ana): Add error handling: Handle the case where `port` is None
     }
+
+
 
     Ok(())
 }

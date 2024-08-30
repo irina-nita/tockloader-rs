@@ -37,23 +37,14 @@ impl TabTbf {
         return self.app_binary.clone();
     }
 
-    
-
-    pub fn add_padding_to_app_binary(&mut self, remaining: usize) {
-        for _i in 0..remaining {
-            self.app_binary.push(0xFF);
-        }
-    }
-
     pub fn set_padding(&mut self, padding: u64) {
         self.padding = Some(padding);
     }
 
-    pub fn get_valid_pages(self, binary_len: usize, page_size: usize) -> Vec<u8> {
+    pub fn get_valid_pages(self, binary_len: usize, binary: Vec<u8>, page_size: usize) -> Vec<u8> {
         // Get indices of pages that have valid data to write
 
         let mut valid_pages: Vec<u8> = Vec::new();
-        let binary = self.get_app_binary();
         for i in 0..(binary_len / page_size) {
             for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
                 if b != 0 {

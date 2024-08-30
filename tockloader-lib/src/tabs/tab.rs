@@ -172,6 +172,7 @@ impl Tab {
         let start_of_app_binary = (header_len as u32 + header.get_protected_size()) as usize;
         let start_of_footers = header.get_binary_end() as usize;
         let binary = data[start_of_app_binary..start_of_footers].to_vec();
+        dbg!(binary.clone().len());
 
         let binary_offset = header.get_binary_end() as usize;
         let (footer, _footer_size) = parse_tbf_footer(&data[binary_offset..]).unwrap();
