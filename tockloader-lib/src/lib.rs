@@ -118,6 +118,7 @@ pub async fn install_app(
     // Create app object
     let app = tab_file.extract_app(system_attributes.arch.clone()).unwrap();
     let header_binary = tab_file.extract_header_binary(system_attributes.arch.clone());
+    dbg!(header_binary.clone());
     dbg!(header_binary.len());
     let footer_binary = tab_file.extract_footer_binary(system_attributes.arch.clone());
     dbg!(footer_binary.len());
@@ -143,19 +144,22 @@ pub async fn install_app(
     dbg!(size);
 
     // Make sure the app is aligned to a multiple of its size
-    let multiple = address / size;
-    let (mut new_address, gap_size) = if multiple * size != address {
+    // let multiple = address / size;
+    // let mut app = app;
+
+    /* let (mut new_address, gap_size) = if multiple * size != address {
         let new_address = ((address + size) / size) * size;
         let gap_size = new_address - address;
         (new_address, gap_size)
     } else {
         (address, 0)
-    };
+    };*/
 
-    let mut app = app;
-    if gap_size > 0 {
+    let mut new_address = address;
+
+    /*if gap_size > 0 {
         app.set_padding(gap_size);
-    }
+    }*/
 
     dbg!(new_address);
     // No more need of core
@@ -191,6 +195,7 @@ pub async fn install_app(
             let mut pkt = (new_address as u32 + (i as usize * page_size) as u32)
                 .to_le_bytes()
                 .to_vec();
+            dbg!(new_address as u32 + (i as usize * page_size) as u32);
             dbg!(pkt.clone());
             // Then the bytes that go into the page
             for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
