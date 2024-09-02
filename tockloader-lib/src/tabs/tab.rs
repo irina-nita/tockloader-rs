@@ -139,22 +139,20 @@ impl Tab {
 
     pub fn extract_header_binary(&self, arch: Option<String>) -> Vec<u8> {
         let data = self.extract_app_binary(arch).unwrap();
-        let (_ver, header_len, _) =
-            parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
-                .ok()
-                .unwrap();
-        return data[0..header_len as usize].to_vec()
+        let (_ver, header_len, _) = parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
+            .ok()
+            .unwrap();
+        return data[0..header_len as usize].to_vec();
     }
 
     pub fn extract_footer_binary(&self, arch: Option<String>) -> Vec<u8> {
         let data = self.extract_app_binary(arch).unwrap();
-        let (_ver, header_len, _) =
-            parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
-                .ok()
-                .unwrap();
+        let (_ver, header_len, _) = parse_tbf_header_lengths(&data[0..8].try_into().unwrap())
+            .ok()
+            .unwrap();
         let header = parse_tbf_header(&data[0..header_len as usize], 2).unwrap();
         let binary_offset = header.get_binary_end() as usize;
-        return data[binary_offset..].to_vec()
+        return data[binary_offset..].to_vec();
     }
 
     pub fn extract_app(&self, arch: Option<String>) -> Option<TabTbf> {
@@ -177,12 +175,7 @@ impl Tab {
         let binary_offset = header.get_binary_end() as usize;
         let (footer, _footer_size) = parse_tbf_footer(&data[binary_offset..]).unwrap();
 
-        let app = TabTbf::new(
-            header,
-            binary,
-            footer,
-            whole_len as usize,
-        );
+        let app = TabTbf::new(header, binary, footer, whole_len as usize);
         return Some(app);
     }
 }

@@ -40,40 +40,4 @@ impl TabTbf {
     pub fn set_padding(&mut self, padding: u64) {
         self.padding = Some(padding);
     }
-
-    pub fn get_valid_pages(self, binary_len: usize, binary: Vec<u8>, page_size: usize) -> Vec<u8> {
-        // Get indices of pages that have valid data to write
-
-        let mut valid_pages: Vec<u8> = Vec::new();
-        for i in 0..(binary_len / page_size) {
-            for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
-                if b != 0 {
-                    valid_pages.push(i.try_into().unwrap());
-                    break;
-                }
-            }
-        }
-
-        // If there are no pages valid, all pages would have been removed, so we write them all
-        if valid_pages.len() == 0 {
-            for i in 0..(binary_len / page_size) {
-                valid_pages.push(i.try_into().unwrap());
-            }
-        }
-
-        // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
-        let mut ending_pages: Vec<u8> = Vec::new();
-        for &i in &valid_pages {
-            let mut iter = valid_pages.iter();
-            if iter.find(|&&x| x == (i + 1)).is_none() && (i + 1) < (binary_len / page_size) as u8 {
-                ending_pages.push(i + 1);
-            }
-        }
-
-        for i in ending_pages {
-            valid_pages.push(i);
-        }
-
-        valid_pages
-    }
 }

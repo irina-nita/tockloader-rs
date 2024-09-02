@@ -8,6 +8,8 @@ mod errors;
 pub mod probe_session;
 pub mod tabs;
 
+use std::time::Duration;
+
 use attributes::app_attributes::AppAttributes;
 use attributes::general_attributes::GeneralAttributes;
 use attributes::system_attributes::SystemAttributes;
@@ -116,9 +118,10 @@ pub async fn install_app(
 
     dbg!(address);
     // Create app object
-    let app = tab_file.extract_app(system_attributes.arch.clone()).unwrap();
+    let app = tab_file
+        .extract_app(system_attributes.arch.clone())
+        .unwrap();
     let header_binary = tab_file.extract_header_binary(system_attributes.arch.clone());
-    dbg!(header_binary.clone());
     dbg!(header_binary.len());
     let footer_binary = tab_file.extract_footer_binary(system_attributes.arch.clone());
     dbg!(footer_binary.len());
@@ -132,10 +135,10 @@ pub async fn install_app(
     }
     for i in binary {
         full_binary.push(i);
-    } 
+    }
     for i in footer_binary {
         full_binary.push(i);
-    } 
+    }
 
     binary = full_binary;
 
@@ -143,51 +146,103 @@ pub async fn install_app(
 
     dbg!(size);
 
-    // Make sure the app is aligned to a multiple of its size
-    // let multiple = address / size;
-    // let mut app = app;
+    //This should work but it doesn't
 
-    /* let (mut new_address, gap_size) = if multiple * size != address {
+    // Make sure the app is aligned to a multiple of its size
+    /*let multiple = address / size;
+
+    let gap_size = if multiple * size != address {
         let new_address = ((address + size) / size) * size;
         let gap_size = new_address - address;
-        (new_address, gap_size)
+        gap_size
     } else {
-        (address, 0)
-    };*/
+        0
+    };
+
+    binary.insert(0, 2);
+    binary.insert(1, 0);
+    binary.insert(2, 16);
+    binary.insert(3, 0);
+    binary.insert(4, ((gap_size as u32) << 8) as u8);
+    binary.insert(5, ((gap_size as u32) >> 8) as u8);
+
+    for i in 9..(gap_size - 64) {
+        binary.insert(i.try_into().unwrap(), 0);
+    }
+
+    for _i in 0..8 {
+        binary.push(0xFF);
+    }*/
 
     let mut new_address = address;
 
-    /*if gap_size > 0 {
-        app.set_padding(gap_size);
-    }*/
+    //dbg!(binary.clone());
 
-    dbg!(new_address);
     // No more need of core
     drop(core);
-
 
     // Make sure the binary is a multiple of the page size by padding 0xFFs
     // TODO(Micu Ana): check if the page-size differs
     let page_size = 512;
-    let binary_len = binary.len();
-    dbg!(binary_len);
-    let needs_padding = binary_len % page_size != 0;
+    let needs_padding = binary.len() % page_size != 0;
 
     dbg!(needs_padding);
 
     if needs_padding {
-        let remaining = page_size - (binary_len % page_size);
+        let remaining = page_size - (binary.len() % page_size);
         dbg!(remaining);
         for _i in 0..remaining {
             binary.push(0xFF);
         }
     }
 
+    let binary_len = binary.len();
+
     // Get indices of pages that have valid data to write
-    let valid_pages: Vec<u8> = app.get_valid_pages(binary_len, binary.clone(), page_size);
+    let mut valid_pages: Vec<u8> = Vec::new();
+    for i in 0..(binary_len / page_size) {
+        for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
+            if b != 0 {
+                valid_pages.push(i.try_into().unwrap());
+                break;
+            }
+        }
+    }
+
+    // If there are no pages valid, all pages would have been removed, so we write them all
+    if valid_pages.len() == 0 {
+        for i in 0..(binary_len / page_size) {
+            valid_pages.push(i.try_into().unwrap());
+        }
+    }
+
+    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
+    let mut ending_pages: Vec<u8> = Vec::new();
+    for &i in &valid_pages {
+        let mut iter = valid_pages.iter();
+        if iter.find(|&&x| x == (i + 1)).is_none() && (i + 1) < (binary_len / page_size) as u8 {
+            ending_pages.push(i + 1);
+        }
+    }
+
+    for i in ending_pages {
+        valid_pages.push(i);
+    }
     dbg!(valid_pages.clone());
 
+    //let valid_pages : Vec<u8> = (0..(binary_len / page_size) as u8).collect();
+
     if let Some(port) = probe_session.port.as_mut() {
+        let response = port.ping_bootloader_and_wait_for_response().await?;
+
+        dbg!(response.clone());
+
+        if response as u8 != Response::ResponsePong as u8 {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let response = port.ping_bootloader_and_wait_for_response().await?;
+            dbg!(response.clone());
+        }
+
         for i in valid_pages {
             println!("Writing page number {}", i);
             // Create the packet that we send to the bootloader
@@ -219,28 +274,23 @@ pub async fn install_app(
 
         new_address += binary.len() as u64;
 
-        let pkt = (new_address as u32)
-                .to_le_bytes()
-                .to_vec();
+        let pkt = (new_address as u32).to_le_bytes().to_vec();
         dbg!(pkt.clone());
 
         let response = port
-                .issue_command(
-                    Command::CommandErasePage,
-                    pkt,
-                    true,
-                    0,
-                    Response::ResponseOK,
-                )
-                .await
-                .unwrap();
+            .issue_command(
+                Command::CommandErasePage,
+                pkt,
+                true,
+                0,
+                Response::ResponseOK,
+            )
+            .await
+            .unwrap();
         dbg!(response);
-
     } else {
         // TODO(Micu Ana): Add error handling: Handle the case where `port` is None
     }
-
-
 
     Ok(())
 }

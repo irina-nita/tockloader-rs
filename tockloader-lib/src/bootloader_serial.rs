@@ -7,7 +7,6 @@
 use crate::errors;
 use bytes::BytesMut;
 use errors::TockloaderError;
-use std::io::ErrorKind;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_serial::SerialPortBuilderExt;
@@ -66,6 +65,7 @@ pub enum Response {
     ResponseCRCXF = 0x24,
     ResponseInfo = 0x25,
     ResponseChangeBaudFail = 0x26,
+    BadResponse,
 }
 
 impl From<u8> for Response {
@@ -91,7 +91,7 @@ impl From<u8> for Response {
 
             // This error handling is temmporary
             //TODO(Micu Ana): Add error handling
-            _ => panic!("Invalid value for Response"),
+            _ => Response::BadResponse,
         }
     }
 }
@@ -119,6 +119,63 @@ impl BootloaderSerial {
                 return BootloaderSerial { port: None };
             }
         }
+    }
+
+    pub async fn toggle_bootloader_entry_dtr_rts(&mut self) {
+        self.port
+            .as_mut()
+            .unwrap()
+            .write_data_terminal_ready(true)
+            .unwrap();
+        self.port
+            .as_mut()
+            .unwrap()
+            .write_request_to_send(true)
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        self.port
+            .as_mut()
+            .unwrap()
+            .write_data_terminal_ready(false)
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        self.port
+            .as_mut()
+            .unwrap()
+            .write_request_to_send(false)
+            .unwrap();
+    }
+
+    pub async fn ping_bootloader_and_wait_for_response(
+        &mut self,
+    ) -> Result<Response, TockloaderError> {
+        let ping_pkt = vec![ESCAPE_CHAR, Command::CommandPing as u8];
+
+        let mut ret = BytesMut::with_capacity(200);
+
+        for i in 0..30 {
+            println!("Iteration number {}", i);
+            let mut bytes_written = 0;
+            while bytes_written != ping_pkt.len() {
+                bytes_written += self
+                    .port
+                    .as_mut()
+                    .unwrap()
+                    .write_buf(&mut &ping_pkt[bytes_written..])
+                    .await?;
+                println!("Wrote {} bytes", bytes_written);
+            }
+            let mut read_bytes = 0;
+            while read_bytes < 2 {
+                read_bytes += self.port.as_mut().unwrap().read_buf(&mut ret).await?;
+            }
+            println!("Read {} bytes", read_bytes);
+            if ret[1] == Response::ResponsePong as u8 {
+                return Ok(Response::from(ret[1]));
+            }
+        }
+        // TODO(Micu Ana): Add error handling
+        return Ok(Response::from(ret[1]));
     }
 
     #[allow(dead_code)]
@@ -154,6 +211,7 @@ impl BootloaderSerial {
         }
 
         println!("Want to write {} bytes.", message.len());
+
         // Write the command message
         let mut bytes_written = 0;
         while bytes_written != message.len() {
@@ -161,7 +219,7 @@ impl BootloaderSerial {
                 .port
                 .as_mut()
                 .unwrap()
-                .write(&message[bytes_written..])
+                .write_buf(&mut &message[bytes_written..])
                 .await?;
         }
         println!("Wrote {} bytes", bytes_written);
@@ -171,40 +229,12 @@ impl BootloaderSerial {
         let mut ret = BytesMut::with_capacity(2);
 
         // We are waiting for 2 bytes to be read
-        let read_bytes = self.port.as_mut().unwrap().read_buf(&mut ret).await?;
+        let mut read_bytes = 0;
+        while read_bytes < 2 {
+            read_bytes += self.port.as_mut().unwrap().read_buf(&mut ret).await?;
+        }
         println!("Read {} bytes", read_bytes);
         println!("{:?}", ret);
-        match read_bytes {
-            2 => {
-                println!("pare ok");
-                dbg!(&ret);
-            }
-
-            // This error handling is temmporary
-            // TODO(Micu Ana): Add error handling
-            // We have to stop at this point since otherwise
-            // we loop waiting on data we will not get.
-            0 => {
-                // As it is no value we have nothing to return
-                println!("no byte read");
-                return Err(errors::TockloaderError::IOError(
-                    ErrorKind::InvalidData.into(),
-                ));
-            }
-            1 => {
-                println!("1 byte read");
-                return Ok(Response::from(ret[0]));
-            }
-
-            // We should never end up in this case, as we can't read more than 2 values
-            _ => {
-                dbg!(ret);
-                println!("nasol rau");
-                return Err(errors::TockloaderError::IOError(
-                    ErrorKind::InvalidData.into(),
-                ));
-            }
-        }
 
         if ret[0] != ESCAPE_CHAR {
             //TODO(Micu Ana): Add error handling
@@ -219,52 +249,35 @@ impl BootloaderSerial {
         let mut new_data: Vec<u8> = Vec::new();
 
         while bytes_to_read - ret.len() > 0 {
-            match self
-                .port
-                .as_mut()
-                .unwrap()
-                .try_read(&mut new_data[0..(bytes_to_read - ret.len())])
-            {
-                Ok(value) => {
-                    // Odd number of escape characters
-                    // These can only come in pairs, so read another byte
-                    let mut count = 0;
-                    for i in 0..value {
-                        if new_data[i] == ESCAPE_CHAR {
-                            count += 1;
-                        }
-                    }
-                    if count % 2 == 1 {
-                        let byte: u8 = 0;
-                        match self.port.as_mut().unwrap().try_read(&mut [byte]) {
-                            Ok(_) => {
-                                new_data.push(byte);
-                            }
+            let value = self.port.as_mut().unwrap().read(&mut new_data).await?;
 
-                            Err(e) => {
-                                // TODO(Micu Ana): Add error handling
-                                return Err(errors::TockloaderError::IOError(e));
-                            }
-                        }
-                    }
-
-                    // De-escape and add array of read in the bytes
-                    for i in 0..(new_data.len() - 1) {
-                        if new_data[i] == ESCAPE_CHAR {
-                            if new_data[i + 1] == ESCAPE_CHAR {
-                                new_data.remove(i + 1);
-                            }
-                        }
-                    }
-
-                    ret.extend_from_slice(&new_data);
-                }
-
-                Err(e) => {
-                    // TODO(Micu Ana): Add error handling
-                    return Err(errors::TockloaderError::IOError(e));
+            // Odd number of escape characters
+            // These can only come in pairs, so read another byte
+            let mut count = 0;
+            for i in 0..value {
+                if new_data[i] == ESCAPE_CHAR {
+                    count += 1;
                 }
             }
+            if count % 2 == 1 {
+                let byte: u8 = 0;
+                while byte == 0 {
+                    self.port.as_mut().unwrap().read(&mut [byte]).await?;
+                }
+
+                new_data.push(byte);
+            }
+
+            // De-escape and add array of read in the bytes
+            for i in 0..(new_data.len() - 1) {
+                if new_data[i] == ESCAPE_CHAR {
+                    if new_data[i + 1] == ESCAPE_CHAR {
+                        new_data.remove(i + 1);
+                    }
+                }
+            }
+
+            ret.extend_from_slice(&new_data);
         }
 
         if ret.len() != (2 + response_len) {
