@@ -167,7 +167,7 @@ impl Tab {
 
         // TODO(Micu Ana): handle error if whole_len < data.len()
 
-        let start_of_app_binary = (header_len as u32 + header.get_protected_size()) as usize;
+        let start_of_app_binary = (header.get_protected_size()) as usize;
         let start_of_footers = header.get_binary_end() as usize;
         let binary = data[start_of_app_binary..start_of_footers].to_vec();
         dbg!(binary.clone().len());
