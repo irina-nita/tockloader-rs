@@ -14,6 +14,7 @@ use attributes::app_attributes::AppAttributes;
 use attributes::general_attributes::GeneralAttributes;
 use attributes::system_attributes::SystemAttributes;
 
+use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
 use probe_rs::MemoryInterface;
 use probe_session::ProbeSession;
@@ -151,32 +152,32 @@ pub async fn install_app(
     //This should work but it doesn't
 
     // Make sure the app is aligned to a multiple of its size
-    /*let multiple = address / size;
+    let multiple = address / size;
 
-    let gap_size = if multiple * size != address {
+    let (new_address, gap_size) = if multiple * size != address {
         let new_address = ((address + size) / size) * size;
         let gap_size = new_address - address;
-        gap_size
+        (new_address, gap_size)
     } else {
-        0
+        (address, 0)
     };
 
-    binary.insert(0, 2);
-    binary.insert(1, 0);
-    binary.insert(2, 16);
-    binary.insert(3, 0);
-    binary.insert(4, ((gap_size as u32) << 8) as u8);
-    binary.insert(5, ((gap_size as u32) >> 8) as u8);
+    // binary.insert(0, 2);
+    // binary.insert(1, 0);
+    // binary.insert(2, 16);
+    // binary.insert(3, 0);
+    // binary.insert(4, ((gap_size as u32) << 8) as u8);
+    // binary.insert(5, ((gap_size as u32) >> 8) as u8);
 
-    for i in 9..(gap_size - 64) {
-        binary.insert(i.try_into().unwrap(), 0);
-    }
+    // for i in 9..(gap_size - 64) {
+    //     binary.insert(i.try_into().unwrap(), 0);
+    // }
 
-    for _i in 0..8 {
-        binary.push(0xFF);
-    }*/
+    // for _i in 0..8 {
+    //     binary.push(0xFF);
+    // }
 
-    let mut new_address = address;
+    dbg!(new_address);
 
     //dbg!(binary.clone());
 
@@ -234,65 +235,85 @@ pub async fn install_app(
 
     //let valid_pages : Vec<u8> = (0..(binary_len / page_size) as u8).collect();
 
-    if let Some(port) = probe_session.port.as_mut() {
-        let response = port.ping_bootloader_and_wait_for_response().await?;
-
-        dbg!(response.clone());
-
-        if response as u8 != Response::ResponsePong as u8 {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-            let response = port.ping_bootloader_and_wait_for_response().await?;
-            dbg!(response.clone());
+    for i in valid_pages {
+        println!("Writing page number {}", i);
+        // Create the packet that we send to the bootloader
+        // First four bytes are the address of the page
+        let mut pkt = Vec::new();
+                 
+        // Then the bytes that go into the page
+        for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
+            pkt.push(b);
         }
+        let mut loader = probe_session.session.as_mut().unwrap().target().flash_loader();
 
-        for i in valid_pages {
-            println!("Writing page number {}", i);
-            // Create the packet that we send to the bootloader
-            // First four bytes are the address of the page
-            let mut pkt = (new_address as u32 + (i as usize * page_size) as u32)
-                .to_le_bytes()
-                .to_vec();
-            dbg!(new_address as u32 + (i as usize * page_size) as u32);
-            dbg!(pkt.clone());
-            // Then the bytes that go into the page
-            for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
-                pkt.push(b);
-            }
-            // dbg!(pkt.clone());
+        loader.add_data(((new_address as u32 + (i as usize * page_size) as u32)).into(), &pkt).unwrap();
 
-            // Write to bootloader
-            let response = port
-                .issue_command(
-                    Command::CommandWritePage,
-                    pkt,
-                    true,
-                    0,
-                    Response::ResponseOK,
-                )
-                .await
-                .unwrap();
-            dbg!(response);
-        }
-
-        new_address += binary.len() as u64;
-
-        let pkt = (new_address as u32).to_le_bytes().to_vec();
-        dbg!(pkt.clone());
-
-        let response = port
-            .issue_command(
-                Command::CommandErasePage,
-                pkt,
-                true,
-                0,
-                Response::ResponseOK,
-            )
-            .await
-            .unwrap();
-        dbg!(response);
-    } else {
-        // TODO(Micu Ana): Add error handling: Handle the case where `port` is None
+        let mut options = DownloadOptions::default();
+        options.keep_unwritten_bytes = true;
+        // Finally, the data can be programmed:
+        loader.commit(&mut probe_session.session.as_mut().unwrap(), options).unwrap();
     }
+
+    // if let Some(port) = probe_session.port.as_mut() {
+    //     let response = port.ping_bootloader_and_wait_for_response().await?;
+
+    //     dbg!(response.clone());
+
+    //     if response as u8 != Response::ResponsePong as u8 {
+    //         tokio::time::sleep(Duration::from_millis(100)).await;
+    //         let response = port.ping_bootloader_and_wait_for_response().await?;
+    //         dbg!(response.clone());
+    //     }
+
+    //     for i in valid_pages {
+    //         println!("Writing page number {}", i);
+    //         // Create the packet that we send to the bootloader
+    //         // First four bytes are the address of the page
+    //         let mut pkt = (new_address as u32 + (i as usize * page_size) as u32)
+    //             .to_le_bytes()
+    //             .to_vec();
+    //         dbg!(new_address as u32 + (i as usize * page_size) as u32);
+    //         dbg!(pkt.clone());
+    //         // Then the bytes that go into the page
+    //         for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
+    //             pkt.push(b);
+    //         }
+    //         // dbg!(pkt.clone());
+
+    //         // Write to bootloader
+    //         let response = port
+    //             .issue_command(
+    //                 Command::CommandWritePage,
+    //                 pkt,
+    //                 true,
+    //                 0,
+    //                 Response::ResponseOK,
+    //             )
+    //             .await
+    //             .unwrap();
+    //         dbg!(response);
+    //     }
+
+    //     new_address += binary.len() as u64;
+
+    //     let pkt = (new_address as u32).to_le_bytes().to_vec();
+    //     dbg!(pkt.clone());
+
+    //     let response = port
+    //         .issue_command(
+    //             Command::CommandErasePage,
+    //             pkt,
+    //             true,
+    //             0,
+    //             Response::ResponseOK,
+    //         )
+    //         .await
+    //         .unwrap();
+    //     dbg!(response);
+    // } else {
+    //     // TODO(Micu Ana): Add error handling: Handle the case where `port` is None
+    // }
 
     Ok(())
 }
