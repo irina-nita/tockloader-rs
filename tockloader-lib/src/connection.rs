@@ -22,7 +22,7 @@ pub enum Connection {
 }
 
 impl Connection {
-    pub fn open(info: ConnectionInfo, chip: Option<String>) -> Result<Connection, TockloaderError>{
+    pub fn open(info: ConnectionInfo, chip: Option<String>) -> Result<Connection, TockloaderError> {
         match info {
             ConnectionInfo::SerialInfo(serial_info) => {
                 let builder = tokio_serial::new(serial_info, 115200);

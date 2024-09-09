@@ -10,7 +10,12 @@ use cli::make_cli;
 use display::{print_info, print_list};
 use errors::TockloaderError;
 use inquire::Select;
-use tockloader_lib::{connection::{Connection, ConnectionInfo}, info_probe, install_app_probe_rs, install_app_serial, list_debug_probes, list_probe, list_serial_ports, tabs::tab::Tab};
+use tockloader_lib::{
+    connection::{Connection, ConnectionInfo},
+    info_probe, install_app_probe_rs, install_app_serial, list_debug_probes, list_probe,
+    list_serial_ports,
+    tabs::tab::Tab,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), TockloaderError> {
@@ -40,31 +45,34 @@ async fn run() -> Result<(), TockloaderError> {
         Some(("list", sub_matches)) => {
             // TODO(george-cosma):inspect-err
             // TODO(Micu Ana): Add error handling
-            let ans = Select::new("Which debug probe do you want to use?", list_debug_probes()).prompt();
+            let ans =
+                Select::new("Which debug probe do you want to use?", list_debug_probes()).prompt();
             // Open connection
-            let conn = Connection::open(tockloader_lib::connection::ConnectionInfo::ProbeInfo(ans.unwrap()), Some(sub_matches.get_one::<String>("chip").unwrap().to_string()));
-            
-            let mut apps_details = list_probe(
-                conn.unwrap(),
-                sub_matches.get_one::<usize>("core").unwrap(),
-            )
-            .await
-            .unwrap();
+            let conn = Connection::open(
+                tockloader_lib::connection::ConnectionInfo::ProbeInfo(ans.unwrap()),
+                Some(sub_matches.get_one::<String>("chip").unwrap().to_string()),
+            );
+
+            let mut apps_details =
+                list_probe(conn.unwrap(), sub_matches.get_one::<usize>("core").unwrap())
+                    .await
+                    .unwrap();
             print_list(&mut apps_details).await;
         }
         Some(("info", sub_matches)) => {
-
             // TODO(Micu Ana): Add error handling
-            let ans = Select::new("Which debug probe do you want to use?", list_debug_probes()).prompt();
+            let ans =
+                Select::new("Which debug probe do you want to use?", list_debug_probes()).prompt();
             // Open connection
-            let conn = Connection::open(tockloader_lib::connection::ConnectionInfo::ProbeInfo(ans.unwrap()), Some(sub_matches.get_one::<String>("chip").unwrap().to_string()));
-            
-            let mut attributes = info_probe(
-                conn.unwrap(),
-                sub_matches.get_one::<usize>("core").unwrap(),
-            )
-            .await
-            .unwrap();
+            let conn = Connection::open(
+                tockloader_lib::connection::ConnectionInfo::ProbeInfo(ans.unwrap()),
+                Some(sub_matches.get_one::<String>("chip").unwrap().to_string()),
+            );
+
+            let mut attributes =
+                info_probe(conn.unwrap(), sub_matches.get_one::<usize>("core").unwrap())
+                    .await
+                    .unwrap();
 
             print_info(&mut attributes.apps, &mut attributes.system).await;
         }
@@ -79,7 +87,9 @@ async fn run() -> Result<(), TockloaderError> {
                     port_names.push(port.port_name);
                 }
                 // TODO(Micu Ana): Add error handling
-                let ans = Select::new("Which serial port do you want to use?", port_names).prompt().unwrap();
+                let ans = Select::new("Which serial port do you want to use?", port_names)
+                    .prompt()
+                    .unwrap();
                 // Open connection
                 let conn = Connection::open(ConnectionInfo::from(ans), None);
                 // Install app
@@ -94,9 +104,13 @@ async fn run() -> Result<(), TockloaderError> {
             // Otherwise we choose probe-rs
             else {
                 // TODO(Micu Ana): Add error handling
-                let ans = Select::new("Which debug probe do you want to use?", list_debug_probes()).prompt();
+                let ans = Select::new("Which debug probe do you want to use?", list_debug_probes())
+                    .prompt();
                 // Open connection
-                let conn = Connection::open(tockloader_lib::connection::ConnectionInfo::ProbeInfo(ans.unwrap()), Some(sub_matches.get_one::<String>("chip").unwrap().to_string()));
+                let conn = Connection::open(
+                    tockloader_lib::connection::ConnectionInfo::ProbeInfo(ans.unwrap()),
+                    Some(sub_matches.get_one::<String>("chip").unwrap().to_string()),
+                );
                 // Install app
                 install_app_probe_rs(
                     conn.unwrap(),
@@ -106,7 +120,7 @@ async fn run() -> Result<(), TockloaderError> {
                 )
                 .await
                 .unwrap();
-            }   
+            }
         }
         _ => {
             println!("Could not run the provided subcommand.");
