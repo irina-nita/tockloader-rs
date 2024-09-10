@@ -186,7 +186,7 @@ impl BootloaderSerial {
         sync: bool,
         response_len: usize,
         response_code: Response,
-    ) -> Result<Response, TockloaderError> {
+    ) -> Result<(Response, Vec<u8>), TockloaderError> {
         // Setup a command to send to the bootloader and handle the response
         // Generate the message to send to the bootloader
         let mut i = 0;
@@ -238,34 +238,20 @@ impl BootloaderSerial {
 
         if ret[0] != ESCAPE_CHAR {
             //TODO(Micu Ana): Add error handling
-            return Ok(Response::from(ret[1]));
+            return Ok((Response::from(ret[1]), vec![]));
         }
 
         if ret[1] != response_code.clone() as u8 {
             //TODO(Micu Ana): Add error handling
-            return Ok(Response::from(ret[1]));
+            return Ok((Response::from(ret[1]), vec![]));
         }
 
         let mut new_data: Vec<u8> = Vec::new();
+        let mut value = ret.len();
 
-        while bytes_to_read - ret.len() > 0 {
-            let value = self.port.as_mut().unwrap().read(&mut new_data).await?;
-
-            // Odd number of escape characters
-            // These can only come in pairs, so read another byte
-            let mut count = 0;
-            for i in 0..value {
-                if new_data[i] == ESCAPE_CHAR {
-                    count += 1;
-                }
-            }
-            if count % 2 == 1 {
-                let byte: u8 = 0;
-                while byte == 0 {
-                    self.port.as_mut().unwrap().read(&mut [byte]).await?;
-                }
-
-                new_data.push(byte);
+        if response_len != 0 {
+            while bytes_to_read > value {
+                value += self.port.as_mut().unwrap().read_buf(&mut new_data).await?;
             }
 
             // De-escape and add array of read in the bytes
@@ -282,9 +268,9 @@ impl BootloaderSerial {
 
         if ret.len() != (2 + response_len) {
             // TODO(Micu Ana): Add error handling
-            return Ok(Response::from(ret[1]));
+            return Ok((Response::from(ret[1]), vec![]));
         }
 
-        Ok(Response::from(ret[1]))
+        Ok((Response::from(ret[1]), ret[2..].to_vec()))
     }
 }
