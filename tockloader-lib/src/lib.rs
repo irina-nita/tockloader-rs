@@ -38,14 +38,14 @@ pub async fn list_probe(
         Connection::ProbeRS(mut session) => {
             let mut core = session.core(*core_index).unwrap();
             let system_attributes = SystemAttributes::read_system_attributes(&mut core);
-            return Ok(AppAttributes::read_apps_data(
+            Ok(AppAttributes::read_apps_data(
                 &mut core,
                 system_attributes.appaddr.unwrap(),
-            ));
+            ))
         }
         _ => {
             // TODO(Micu Ana): Add error handling
-            return Err(TockloaderError::NoPortAvailable);
+            Err(TockloaderError::NoPortAvailable)
         }
     }
 }
@@ -68,7 +68,7 @@ pub async fn info_probe(
         }
         _ => {
             // TODO(Micu Ana): Add error handling
-            return Err(TockloaderError::NoPortAvailable);
+            Err(TockloaderError::NoPortAvailable)
         }
     }
 }
@@ -146,7 +146,9 @@ pub async fn install_app_probe_rs(
                 address += whole_len as u64;
             }
 
-            let mut binary = tab_file.extract_binary(system_attributes.arch.clone()).unwrap();
+            let mut binary = tab_file
+                .extract_binary(system_attributes.arch.clone())
+                .unwrap();
 
             let size = binary.len() as u64;
 
@@ -180,7 +182,10 @@ pub async fn install_app_probe_rs(
             // Get indices of pages that have valid data to write
             let mut valid_pages: Vec<u8> = Vec::new();
             for i in 0..(size as usize / page_size) {
-                for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
+                for b in binary[(i * page_size)..((i + 1) * page_size)]
+                    .iter()
+                    .copied()
+                {
                     if b != 0 {
                         valid_pages.push(i.try_into().unwrap());
                         break;
@@ -189,7 +194,7 @@ pub async fn install_app_probe_rs(
             }
 
             // If there are no pages valid, all pages would have been removed, so we write them all
-            if valid_pages.len() == 0 {
+            if valid_pages.is_empty() {
                 for i in 0..(size as usize / page_size) {
                     valid_pages.push(i.try_into().unwrap());
                 }
@@ -199,9 +204,7 @@ pub async fn install_app_probe_rs(
             let mut ending_pages: Vec<u8> = Vec::new();
             for &i in &valid_pages {
                 let mut iter = valid_pages.iter();
-                if iter.find(|&&x| x == (i + 1)).is_none()
-                    && (i + 1) < (size as usize / page_size) as u8
-                {
+                if !iter.any(|&x| x == (i + 1)) && (i + 1) < (size as usize / page_size) as u8 {
                     ending_pages.push(i + 1);
                 }
             }
@@ -217,7 +220,10 @@ pub async fn install_app_probe_rs(
                 let mut pkt = Vec::new();
 
                 // Then the bytes that go into the page
-                for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
+                for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)]
+                    .iter()
+                    .copied()
+                {
                     pkt.push(b);
                 }
                 let mut loader = session.target().flash_loader();
@@ -247,7 +253,7 @@ pub async fn install_app_probe_rs(
 
 pub async fn install_app_serial(
     _choice: Connection,
-    _board: &String,
+    _board: &str,
     _tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     todo!();
