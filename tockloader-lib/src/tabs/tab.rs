@@ -2,136 +2,80 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
+use crate::errors::TockloaderError;
+use crate::tabs::metadata::Metadata;
 use std::{fs::File, io::Read};
-
 use tar::Archive;
 
-use crate::errors::TockloaderError;
+struct TbfFile {
+    pub filename: String,
+    pub data: Vec<u8>,
+}
 
 pub struct Tab {
-    pub path: String,
+    metadata: Metadata,
+    tbf_files: Vec<TbfFile>,
 }
 
 impl Tab {
-    pub fn new(path: String) -> Self {
-        Tab { path }
-    }
+    pub fn open(path: String) -> Result<Self, TockloaderError> {
+        let mut metadata = None;
+        let mut tbf_files = Vec::new();
 
-    // TODO(MicuAna): add error handling
-    pub fn is_compatible_with_kernel_verison(
-        &self,
-        kernel_version: f32,
-    ) -> Result<bool, TockloaderError> {
-        let mut value = false;
-        let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
-        for entry in archive.entries().unwrap() {
-            match entry {
-                Ok(mut entry) => {
-                    if let Ok(path) = entry.path() {
-                        if let Some(file_name) = path.file_name() {
-                            if file_name == "metadata.toml" {
-                                let mut buf = String::new();
-                                entry.read_to_string(&mut buf).unwrap();
-                                let replaced = buf.replace("\"", "");
-                                let parts = replaced.split("\n");
-                                let collection = parts.collect::<Vec<&str>>();
-                                for item in collection {
-                                    if item.contains("minimum-tock-kernel-version") {
-                                        let columns = item.split("=");
-                                        let elem = columns.collect::<Vec<&str>>();
-                                        let kernver = elem[1].trim().parse::<f32>().unwrap();
-                                        if kernver == kernel_version {
-                                            value = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            break;
-                        } else {
-                            println!("Failed to get path");
-                        }
-                    }
-                }
-                Err(e) => {
-                    println!("Can't open entry in tab: {:?}", e);
-                }
+        let mut archive = Archive::new(File::open(path).unwrap());
+        for file in archive.entries().unwrap() {
+            let mut file = file.unwrap();
+            let path = file.path().unwrap();
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
+
+            if file_name == "metadata.toml" {
+                let mut buf = String::new();
+                file.read_to_string(&mut buf).unwrap();
+
+                metadata = Some(Metadata::new(buf).unwrap());
+            } else if file_name.ends_with(".tbf") {
+                let mut data = Vec::new();
+                file.read_to_end(&mut data).unwrap();
+
+                tbf_files.push(TbfFile {
+                    filename: file_name.to_string(),
+                    data,
+                });
             }
         }
-        Ok(value)
+
+        if metadata.is_none() {
+            panic!("No metadata.toml found in tab");
+        }
+
+        Ok(Tab {
+            metadata: metadata.unwrap(),
+            tbf_files,
+        })
     }
 
-    // TODO(MicuAna): add error handling
-    pub fn is_compatible_with_board(&self, board: &String) -> Result<bool, TockloaderError> {
-        let mut value = false;
-        let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
-        for entry in archive.entries().unwrap() {
-            match entry {
-                Ok(mut entry) => {
-                    if let Ok(path) = entry.path() {
-                        if let Some(file_name) = path.file_name() {
-                            if file_name == "metadata.toml" {
-                                let mut buf = String::new();
-                                entry.read_to_string(&mut buf).unwrap();
-                                let replaced = buf.replace("\"", "");
-                                let parts = replaced.split("\n");
-                                let collection = parts.collect::<Vec<&str>>();
-                                for item in collection {
-                                    if item.contains("only-for-boards") {
-                                        let columns = item.split("=");
-                                        let elem = columns.collect::<Vec<&str>>();
-                                        let all_boards = elem[1].split(", ");
-                                        let boards = all_boards.collect::<Vec<&str>>();
-                                        for bd in boards {
-                                            if bd == board {
-                                                value = true;
-                                                break;
-                                            }
-                                        }
-                                    } else {
-                                        value = true;
-                                    }
-                                }
-                                break;
-                            } else {
-                                println!("Failed to get path");
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    println!("Can't open entry in tab: {:?}", e);
-                }
-            }
-        }
-        Ok(value)
+    pub fn is_compatible_with_kernel_verison(&self, _kernel_version: u32) -> bool {
+        // Kernel version seems to not be working properly on the microbit bootloader. It is always
+        // "1" despite the actual version.
+        // return self.metadata.minimum_tock_kernel_version.major <= kernel_version;
+        true
     }
 
-    pub fn extract_binary(&self, arch: Option<String>) -> Result<Vec<u8>, TockloaderError> {
-        // Find all filenames that start with the architecture name
-        let mut data = Vec::new();
-        let mut archive = Archive::new(File::open(self.path.clone()).unwrap());
-        for entry in archive.entries().unwrap() {
-            match entry {
-                Ok(mut entry) => {
-                    let path = entry.path().unwrap();
-                    if let Some(file_name) = path.file_name() {
-                        let name = file_name.to_str().unwrap();
-                        let name_pieces = name.split(".");
-                        let name_vec = name_pieces.collect::<Vec<&str>>();
-                        if name_vec.len() >= 2
-                            && name_vec[name_vec.len() - 1] == "tbf"
-                            && name_vec[0] == arch.clone().unwrap()
-                        {
-                            entry.read_to_end(&mut data).unwrap();
-                        }
-                    }
-                }
-                Err(_) => {
-                    // TODO(Micu Ana): Add error handling
-                }
+    pub fn is_compatible_with_board(&self, board: &String) -> bool {
+        if let Some(boards) = &self.metadata.only_for_boards {
+            boards.contains(board)
+        } else {
+            true
+        }
+    }
+
+    pub fn extract_binary(&self, arch: &str) -> Result<Vec<u8>, TockloaderError> {
+        for file in &self.tbf_files {
+            if file.filename.starts_with(arch) {
+                return Ok(file.data.clone());
             }
         }
-        Ok(data)
+
+        panic!("No binary found for architecture {}", arch);
     }
 }

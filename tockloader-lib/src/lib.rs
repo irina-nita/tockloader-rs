@@ -87,15 +87,10 @@ pub async fn install_app_probe_rs(
         Connection::ProbeRS(mut session) => {
             // Verify if the specified app is compatible with board
             // TODO(Micu Ana): Replace the prints with log messages
-            match tab_file.is_compatible_with_board(board) {
-                Ok(value) => {
-                    if value {
-                        println!("Specified tab is compatible with board.");
-                    } else {
-                        println!("Specified tab is not compatible with board.");
-                    }
-                }
-                Err(e) => println!("Something went wrong: {:?}", e),
+            if tab_file.is_compatible_with_board(board) {
+                println!("Specified tab is compatible with board.");
+            } else {
+                panic!("Specified tab is not compatible with board.");
             }
 
             // Get core - if not specified, by default is 0
@@ -105,18 +100,14 @@ pub async fn install_app_probe_rs(
             // Get board data
             let system_attributes = SystemAttributes::read_system_attributes(&mut core);
             let kernel_version = system_attributes.kernel_version.unwrap();
+            println!("Kernel version of board: {}", kernel_version);
 
             // Verify if the specified app is compatible with kernel version
             // TODO(Micu Ana): Replace the prints with log messages
-            match tab_file.is_compatible_with_kernel_verison(kernel_version as f32) {
-                Ok(value) => {
-                    if value {
-                        println!("Specified tab is compatible with your kernel version.");
-                    } else {
-                        println!("Specified tab is not compatible with your kernel version.");
-                    }
-                }
-                Err(e) => println!("Something went wrong: {:?}", e),
+            if tab_file.is_compatible_with_kernel_verison(kernel_version as u32) {
+                println!("Specified tab is compatible with your kernel version.");
+            } else {
+                println!("Specified tab is not compatible with your kernel version.");
             }
 
             // Get the address from which we start writing the new app
@@ -147,7 +138,7 @@ pub async fn install_app_probe_rs(
             }
 
             let mut binary = tab_file
-                .extract_binary(system_attributes.arch.clone())
+                .extract_binary(&system_attributes.arch.unwrap()) // use the system_attributes arch or the provided one?
                 .unwrap();
 
             let size = binary.len() as u64;
