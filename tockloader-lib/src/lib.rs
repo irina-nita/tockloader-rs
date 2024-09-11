@@ -4,13 +4,19 @@
 
 pub mod attributes;
 pub mod connection;
+pub mod bootloader_serial;
 mod errors;
 pub mod tabs;
 
+use std::time::Duration;
+
 use attributes::app_attributes::AppAttributes;
+use attributes::decode::decode_attribute;
 use attributes::general_attributes::GeneralAttributes;
 use attributes::system_attributes::SystemAttributes;
 
+use bootloader_serial::{issue_command, ping_bootloader_and_wait_for_response, Command, Response};
+use byteorder::{ByteOrder, LittleEndian};
 use connection::Connection;
 use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
@@ -252,9 +258,271 @@ pub async fn install_app_probe_rs(
 }
 
 pub async fn install_app_serial(
-    _choice: Connection,
-    _board: &str,
-    _tab_file: Tab,
+    choice: Connection,
+    board: &String,
+    tab_file: Tab,
 ) -> Result<(), TockloaderError> {
-    todo!();
+    match choice {
+        Connection::Serial(mut port) => {
+            // Verify if the specified app is compatible with board
+            match tab_file.is_compatible_with_board(board) {
+                Ok(value) => {
+                    if value {
+                        println!("Specified tab is compatible with board.");
+                    } else {
+                        println!("Specified tab is not compatible with board.");
+                    }
+                }
+                Err(e) => println!("Something went wrong: {:?}", e),
+            }
+
+            let response = ping_bootloader_and_wait_for_response(&mut port).await?;
+
+            dbg!(response.clone());
+
+            if response as u8 != Response::ResponsePong as u8 {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                let response = ping_bootloader_and_wait_for_response(&mut port).await?;
+                dbg!(response.clone());
+            }
+
+            let mut pkt = (0x600 as u32).to_le_bytes().to_vec();
+            let length = (1024 as u16).to_le_bytes().to_vec();
+            for i in length {
+                pkt.push(i);
+            }
+
+            let (response, message) = issue_command(
+                    &mut port,
+                    Command::CommandReadRange,
+                    pkt,
+                    true,
+                    64 * 16,
+                    Response::ResponseReadRange,
+                )
+                .await
+                .unwrap();
+            dbg!(response);
+
+            let mut data = message.chunks(64);
+
+            let mut address = 0 as u64;
+            let mut arch = String::new();    
+
+            for index_data in 0..data.len() {
+                let step = match data.next() {
+                    Some(data) => data,
+                    None => break,
+                };
+
+                let step_option = decode_attribute(step);
+
+                if step_option.is_none() {
+                    continue;
+                }
+
+                let decoded_attributes = step_option.unwrap();
+
+                match index_data {
+                    0 => {}
+                    1 => {
+                        arch = decoded_attributes.value.to_string();
+                    }
+                    2 => {
+                        address = u64::from_str_radix(&decoded_attributes.value[2..], 16).unwrap();
+                    }
+                    3 => {}
+                    _ => panic!("Board data not found!"),
+                }
+            }
+
+            let mut pkt = ((address - 100) as u32).to_le_bytes().to_vec();
+            let length = (100 as u16).to_le_bytes().to_vec();
+            for i in length {
+                pkt.push(i);
+            }
+
+            let (response, message) = issue_command(
+                    &mut port,
+                    Command::CommandReadRange,
+                    pkt,
+                    true,
+                    100,
+                    Response::ResponseReadRange,
+                )
+                .await
+                .unwrap();
+            dbg!(response);
+
+            let kernel_version = LittleEndian::read_uint(&message[95..96], 1);
+
+            // Verify if the specified app is compatible with kernel version
+            match tab_file.is_compatible_with_kernel_verison(kernel_version as f32) {
+                Ok(value) => {
+                    if value {
+                        println!("Specified tab is compatible with your kernel version.");
+                    } else {
+                        println!("Specified tab is not compatible with your kernel version.");
+                    }
+                }
+                Err(e) => println!("Something went wrong: {:?}", e),
+            }
+
+            loop {
+                // Read a block of 200 8-bit words
+                let mut pkt = (address as u32).to_le_bytes().to_vec();
+                let length = (200 as u16).to_le_bytes().to_vec();
+                for i in length {
+                    pkt.push(i);
+                }
+
+                let (response, message) = issue_command(
+                        &mut port,
+                        Command::CommandReadRange,
+                        pkt,
+                        true,
+                        200,
+                        Response::ResponseReadRange,
+                    )
+                    .await
+                    .unwrap();
+                dbg!(response);
+
+                let (_ver, _header_len, whole_len) =
+                    match parse_tbf_header_lengths(&message[0..8].try_into().unwrap()) {
+                        Ok((ver, header_len, whole_len)) if header_len != 0 => (ver, header_len, whole_len),
+                        _ => break, // No more apps
+                    };
+        
+                address += whole_len as u64;
+            }
+
+            let mut binary = tab_file
+                .extract_binary(Some(arch.clone()))
+                .unwrap();
+
+
+            let size = binary.len() as u64;
+
+            dbg!(size);
+
+            //This should work but it doesn't
+
+            // Make sure the app is aligned to a multiple of its size
+            let multiple = address / size;
+
+            let (mut new_address, _gap_size) = if multiple * size != address {
+                let new_address = ((address + size) / size) * size;
+                let gap_size = new_address - address;
+                (new_address, gap_size)
+            } else {
+                (address, 0)
+            };
+
+            dbg!(new_address);
+
+            //dbg!(binary.clone());
+
+            // Make sure the binary is a multiple of the page size by padding 0xFFs
+            // TODO(Micu Ana): check if the page-size differs
+            let page_size = 512;
+            let needs_padding = binary.len() % page_size != 0;
+
+            dbg!(needs_padding);
+
+            if needs_padding {
+                let remaining = page_size - (binary.len() % page_size);
+                dbg!(remaining);
+                for _i in 0..remaining {
+                    binary.push(0xFF);
+                }
+            }
+
+            let binary_len = binary.len();
+
+            // Get indices of pages that have valid data to write
+            let mut valid_pages: Vec<u8> = Vec::new();
+            for i in 0..(binary_len / page_size) {
+                for b in binary[(i * page_size)..((i + 1) * page_size)].to_vec() {
+                    if b != 0 {
+                        valid_pages.push(i.try_into().unwrap());
+                        break;
+                    }
+                }
+            }
+
+            // If there are no pages valid, all pages would have been removed, so we write them all
+            if valid_pages.len() == 0 {
+                for i in 0..(binary_len / page_size) {
+                    valid_pages.push(i.try_into().unwrap());
+                }
+            }
+
+            // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
+            let mut ending_pages: Vec<u8> = Vec::new();
+            for &i in &valid_pages {
+                let mut iter = valid_pages.iter();
+                if iter.find(|&&x| x == (i + 1)).is_none() && (i + 1) < (binary_len / page_size) as u8 {
+                    ending_pages.push(i + 1);
+                }
+            }
+
+            for i in ending_pages {
+                valid_pages.push(i);
+            }
+            dbg!(valid_pages.clone());
+
+            for i in valid_pages {
+                println!("Writing page number {}", i);
+                // Create the packet that we send to the bootloader
+                // First four bytes are the address of the page
+                let mut pkt = (new_address as u32 + (i as usize * page_size) as u32)
+                    .to_le_bytes()
+                    .to_vec();
+                dbg!(new_address as u32 + (i as usize * page_size) as u32);
+                dbg!(pkt.clone());
+                // Then the bytes that go into the page
+                for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
+                    pkt.push(b);
+                }
+                // dbg!(pkt.clone());
+
+                // Write to bootloader
+                let (response, _) = issue_command(
+                        &mut port,
+                        Command::CommandWritePage,
+                        pkt,
+                        true,
+                        0,
+                        Response::ResponseOK,
+                    )
+                    .await
+                    .unwrap();
+                dbg!(response);
+            }
+
+            new_address += binary.len() as u64;
+
+            let pkt = (new_address as u32).to_le_bytes().to_vec();
+            dbg!(pkt.clone());
+
+            let (response, _) = issue_command(
+                    &mut port,
+                    Command::CommandErasePage,
+                    pkt,
+                    true,
+                    0,
+                    Response::ResponseOK,
+                )
+                .await
+                .unwrap();
+            dbg!(response);
+
+        }
+        _ => {
+            // TODO(Micu Ana): Add error handling
+            return Err(TockloaderError::NoPortAvailable);
+        }
+    }
+    Ok(())
 }
