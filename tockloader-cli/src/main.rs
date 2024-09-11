@@ -77,7 +77,8 @@ async fn run() -> Result<(), TockloaderError> {
             print_info(&mut attributes.apps, &mut attributes.system).await;
         }
         Some(("install", sub_matches)) => {
-            let tab_file = Tab::new(sub_matches.get_one::<String>("tab").unwrap().to_string());
+            let tab_file =
+                Tab::open(sub_matches.get_one::<String>("tab").unwrap().to_string()).unwrap();
             // If "--serial" flag is used, we choose the serial connection
             if *sub_matches.get_one::<bool>("serial").unwrap() {
                 let serial_ports = list_serial_ports();
@@ -100,9 +101,7 @@ async fn run() -> Result<(), TockloaderError> {
                 )
                 .await
                 .unwrap();
-            }
-            // Otherwise we choose probe-rs
-            else {
+            } else {
                 // TODO(Micu Ana): Add error handling
                 let ans = Select::new("Which debug probe do you want to use?", list_debug_probes())
                     .prompt();
