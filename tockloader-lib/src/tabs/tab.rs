@@ -119,10 +119,11 @@ impl Tab {
                         let name = file_name.to_str().unwrap();
                         let name_pieces = name.split(".");
                         let name_vec = name_pieces.collect::<Vec<&str>>();
-                        if name_vec.len() >= 2 && name_vec[name_vec.len() - 1] == "tbf" {
-                            if name_vec[0] == arch.clone().unwrap() {
-                                entry.read_to_end(&mut data).unwrap();
-                            }
+                        if name_vec.len() >= 2
+                            && name_vec[name_vec.len() - 1] == "tbf"
+                            && name_vec[0] == arch.clone().unwrap()
+                        {
+                            entry.read_to_end(&mut data).unwrap();
                         }
                     }
                 }

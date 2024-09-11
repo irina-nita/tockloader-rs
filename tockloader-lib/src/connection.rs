@@ -34,11 +34,11 @@ impl Connection {
                         port.set_timeout(Duration::from_millis(500)).unwrap();
                         port.write_request_to_send(false).unwrap();
                         port.write_data_terminal_ready(false).unwrap();
-                        return Ok(Connection::Serial(port));
+                        Ok(Connection::Serial(port))
                     }
                     Err(_) => {
                         //TODO(Micu Ana): Add error handling
-                        return Err(TockloaderError::NoPortAvailable);
+                        Err(TockloaderError::NoPortAvailable)
                     }
                 }
             }
@@ -49,7 +49,7 @@ impl Connection {
                     Ok(session) => Ok(Connection::ProbeRS(session)),
                     Err(_) => {
                         //TODO(Micu Ana): Add error handling
-                        return Err(TockloaderError::NoPortAvailable);
+                        Err(TockloaderError::NoPortAvailable)
                     }
                 }
             }
