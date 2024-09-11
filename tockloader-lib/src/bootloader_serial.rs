@@ -47,23 +47,23 @@ pub enum Command {
 #[derive(Clone, Debug)]
 pub enum Response {
     // Responses from the bootloader
-    ResponseOverflow,
-    ResponsePong,
-    ResponseBadAddr,
-    ResponseIntError,
-    ResponseBadArgs,
-    ResponseOK,
-    ResponseUnknown,
-    ResponseXFTimeout,
-    ResponseXFEPE,
-    ResponseCRCRX,
-    ResponseReadRange,
-    ResponseXRRange,
-    ResponseGetAttribute,
-    ResponseCRCInternalFlash,
-    ResponseCRCXF,
-    ResponseInfo,
-    ResponseChangeBaudFail,
+    ResponseOverflow = 0x10,
+    ResponsePong = 0x11,
+    ResponseBadAddr = 0x12,
+    ResponseIntError = 0x13,
+    ResponseBadArgs = 0x14,
+    ResponseOK = 0x15,
+    ResponseUnknown = 0x16,
+    ResponseXFTimeout = 0x17,
+    ResponseXFEPE = 0x18,
+    ResponseCRCRX = 0x19,
+    ResponseReadRange = 0x20,
+    ResponseXRRange = 0x21,
+    ResponseGetAttribute = 0x22,
+    ResponseCRCInternalFlash = 0x23,
+    ResponseCRCXF = 0x24,
+    ResponseInfo = 0x25,
+    ResponseChangeBaudFail = 0x26,
     BadResponse,
 }
 
@@ -190,21 +190,29 @@ pub async fn issue_command(
 
         if ret[0] != ESCAPE_CHAR {
             //TODO(Micu Ana): Add error handling
+            println!("Returning because first character is not escape");
             return Ok((Response::from(ret[1]), vec![]));
+
         }
 
         if ret[1] != response_code.clone() as u8 {
             //TODO(Micu Ana): Add error handling
+            dbg!(ret[1]);
+            dbg!(response_code.clone() as u8 );
+            println!("Returning because second character is not response");
             return Ok((Response::from(ret[1]), vec![]));
         }
 
         let mut new_data: Vec<u8> = Vec::new();
-        let mut value = ret.len();
+        let mut value = 2;
 
+
+        dbg!(response_len);
         if response_len != 0 {
             while bytes_to_read > value {
                 value += port.read_buf(&mut new_data).await?;
             }
+            dbg!(value);
 
             // De-escape and add array of read in the bytes
             for i in 0..(new_data.len() - 1) {

@@ -292,7 +292,7 @@ pub async fn install_app_serial(
                 pkt.push(i);
             }
 
-            let (response, message) = issue_command(
+            let (_, message) = issue_command(
                     &mut port,
                     Command::CommandReadRange,
                     pkt,
@@ -302,7 +302,6 @@ pub async fn install_app_serial(
                 )
                 .await
                 .unwrap();
-            dbg!(response);
 
             let mut data = message.chunks(64);
 
@@ -329,6 +328,7 @@ pub async fn install_app_serial(
                         arch = decoded_attributes.value.to_string();
                     }
                     2 => {
+                        dbg!(&decoded_attributes);
                         address = u64::from_str_radix(&decoded_attributes.value[2..], 16).unwrap();
                     }
                     3 => {}
@@ -342,7 +342,7 @@ pub async fn install_app_serial(
                 pkt.push(i);
             }
 
-            let (response, message) = issue_command(
+            let (_, message) = issue_command(
                     &mut port,
                     Command::CommandReadRange,
                     pkt,
@@ -352,7 +352,6 @@ pub async fn install_app_serial(
                 )
                 .await
                 .unwrap();
-            dbg!(response);
 
             let kernel_version = LittleEndian::read_uint(&message[95..96], 1);
 
@@ -376,7 +375,7 @@ pub async fn install_app_serial(
                     pkt.push(i);
                 }
 
-                let (response, message) = issue_command(
+                let (_, message) = issue_command(
                         &mut port,
                         Command::CommandReadRange,
                         pkt,
@@ -386,7 +385,6 @@ pub async fn install_app_serial(
                     )
                     .await
                     .unwrap();
-                dbg!(response);
 
                 let (_ver, _header_len, whole_len) =
                     match parse_tbf_header_lengths(&message[0..8].try_into().unwrap()) {
@@ -404,11 +402,6 @@ pub async fn install_app_serial(
 
             let size = binary.len() as u64;
 
-            dbg!(size);
-
-            //This should work but it doesn't
-
-            // Make sure the app is aligned to a multiple of its size
             let multiple = address / size;
 
             let (mut new_address, _gap_size) = if multiple * size != address {
@@ -419,16 +412,10 @@ pub async fn install_app_serial(
                 (address, 0)
             };
 
-            dbg!(new_address);
-
-            //dbg!(binary.clone());
-
             // Make sure the binary is a multiple of the page size by padding 0xFFs
             // TODO(Micu Ana): check if the page-size differs
             let page_size = 512;
             let needs_padding = binary.len() % page_size != 0;
-
-            dbg!(needs_padding);
 
             if needs_padding {
                 let remaining = page_size - (binary.len() % page_size);
@@ -470,7 +457,6 @@ pub async fn install_app_serial(
             for i in ending_pages {
                 valid_pages.push(i);
             }
-            dbg!(valid_pages.clone());
 
             for i in valid_pages {
                 println!("Writing page number {}", i);
@@ -485,10 +471,9 @@ pub async fn install_app_serial(
                 for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)].to_vec() {
                     pkt.push(b);
                 }
-                // dbg!(pkt.clone());
 
                 // Write to bootloader
-                let (response, _) = issue_command(
+                let (_, _) = issue_command(
                         &mut port,
                         Command::CommandWritePage,
                         pkt,
@@ -498,7 +483,6 @@ pub async fn install_app_serial(
                     )
                     .await
                     .unwrap();
-                dbg!(response);
             }
 
             new_address += binary.len() as u64;
@@ -506,7 +490,7 @@ pub async fn install_app_serial(
             let pkt = (new_address as u32).to_le_bytes().to_vec();
             dbg!(pkt.clone());
 
-            let (response, _) = issue_command(
+            let (_, _) = issue_command(
                     &mut port,
                     Command::CommandErasePage,
                     pkt,
@@ -516,7 +500,6 @@ pub async fn install_app_serial(
                 )
                 .await
                 .unwrap();
-            dbg!(response);
 
         }
         _ => {

@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use probe_rs::{probe::DebugProbeInfo, Permissions, Session};
-use tokio_serial::{FlowControl, Parity, SerialPort, SerialStream, StopBits};
+
+use tokio_serial::{FlowControl, Parity, SerialStream, StopBits};
 
 use crate::errors::TockloaderError;
 
@@ -25,15 +26,15 @@ impl Connection {
     pub fn open(info: ConnectionInfo, chip: Option<String>) -> Result<Connection, TockloaderError> {
         match info {
             ConnectionInfo::SerialInfo(serial_info) => {
-                let builder = tokio_serial::new(serial_info, 115200);
+                let builder = tokio_serial::new(serial_info, 115200)
+                    .parity(Parity::None)
+                    .stop_bits(StopBits::One)
+                    .flow_control(FlowControl::None)
+                    .timeout(Duration::from_millis(500));
+
                 match SerialStream::open(&builder) {
-                    Ok(mut port) => {
-                        port.set_parity(Parity::None).unwrap();
-                        port.set_stop_bits(StopBits::One).unwrap();
-                        port.set_flow_control(FlowControl::None).unwrap();
-                        port.set_timeout(Duration::from_millis(500)).unwrap();
-                        port.write_request_to_send(false).unwrap();
-                        port.write_data_terminal_ready(false).unwrap();
+                    Ok(port) => {
+                        
                         Ok(Connection::Serial(port))
                     }
                     Err(_) => {
