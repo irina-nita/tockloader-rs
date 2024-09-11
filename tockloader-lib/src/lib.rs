@@ -256,16 +256,12 @@ pub async fn install_app_serial(
     match choice {
         Connection::Serial(mut port) => {
             // Verify if the specified app is compatible with board
-            match tab_file.is_compatible_with_board(board) {
-                Ok(value) => {
-                    if value {
-                        println!("Specified tab is compatible with board.");
-                    } else {
-                        println!("Specified tab is not compatible with board.");
-                    }
-                }
-                Err(e) => println!("Something went wrong: {:?}", e),
+            if tab_file.is_compatible_with_board(board) {
+                println!("Specified tab is compatible with board.");
+            } else {
+                panic!("Specified tab is not compatible with board.");
             }
+
 
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
