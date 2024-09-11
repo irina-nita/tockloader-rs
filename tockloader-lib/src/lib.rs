@@ -79,19 +79,11 @@ pub async fn info_serial(_choice: Connection) -> Result<GeneralAttributes, Tockl
 
 pub async fn install_app_probe_rs(
     choice: Connection,
-    board: &String,
     core_index: &usize,
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-            // Verify if the specified app is compatible with board
-            // TODO(Micu Ana): Replace the prints with log messages
-            if tab_file.is_compatible_with_board(board) {
-                println!("Specified tab is compatible with board.");
-            } else {
-                panic!("Specified tab is not compatible with board.");
-            }
 
             // Get core - if not specified, by default is 0
             // TODO (Micu Ana): Add error handling
@@ -99,8 +91,17 @@ pub async fn install_app_probe_rs(
 
             // Get board data
             let system_attributes = SystemAttributes::read_system_attributes(&mut core);
+            let board = system_attributes.board.unwrap();
             let kernel_version = system_attributes.kernel_version.unwrap();
             println!("Kernel version of board: {}", kernel_version);
+
+            // Verify if the specified app is compatible with board
+            // TODO(Micu Ana): Replace the prints with log messages
+            if tab_file.is_compatible_with_board(&board) {
+                println!("Specified tab is compatible with board.");
+            } else {
+                panic!("Specified tab is not compatible with board.");
+            }
 
             // Verify if the specified app is compatible with kernel version
             // TODO(Micu Ana): Replace the prints with log messages
