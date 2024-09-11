@@ -3,8 +3,8 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 pub mod attributes;
-pub mod connection;
 pub mod bootloader_serial;
+pub mod connection;
 mod errors;
 pub mod tabs;
 
@@ -90,7 +90,6 @@ pub async fn install_app_probe_rs(
 ) -> Result<(), TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-
             // Get core - if not specified, by default is 0
             // TODO (Micu Ana): Add error handling
             let mut core = session.core(*core_index).unwrap();
@@ -249,10 +248,7 @@ pub async fn install_app_probe_rs(
     Ok(())
 }
 
-pub async fn install_app_serial(
-    choice: Connection,
-    tab_file: Tab,
-) -> Result<(), TockloaderError> {
+pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(), TockloaderError> {
     match choice {
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
@@ -270,21 +266,21 @@ pub async fn install_app_serial(
             }
 
             let (_, message) = issue_command(
-                    &mut port,
-                    Command::CommandReadRange,
-                    pkt,
-                    true,
-                    64 * 16,
-                    Response::ResponseReadRange,
-                )
-                .await
-                .unwrap();
+                &mut port,
+                Command::CommandReadRange,
+                pkt,
+                true,
+                64 * 16,
+                Response::ResponseReadRange,
+            )
+            .await
+            .unwrap();
 
             let mut data = message.chunks(64);
 
             let mut board = String::new();
             let mut arch = String::new();
-            let mut address = 0 as u64;    
+            let mut address = 0 as u64;
 
             for index_data in 0..data.len() {
                 let step = match data.next() {
@@ -330,15 +326,15 @@ pub async fn install_app_serial(
             }
 
             let (_, message) = issue_command(
-                    &mut port,
-                    Command::CommandReadRange,
-                    pkt,
-                    true,
-                    100,
-                    Response::ResponseReadRange,
-                )
-                .await
-                .unwrap();
+                &mut port,
+                Command::CommandReadRange,
+                pkt,
+                true,
+                100,
+                Response::ResponseReadRange,
+            )
+            .await
+            .unwrap();
 
             let kernel_version = LittleEndian::read_uint(&message[95..96], 1);
 
@@ -358,29 +354,28 @@ pub async fn install_app_serial(
                 }
 
                 let (_, message) = issue_command(
-                        &mut port,
-                        Command::CommandReadRange,
-                        pkt,
-                        true,
-                        200,
-                        Response::ResponseReadRange,
-                    )
-                    .await
-                    .unwrap();
+                    &mut port,
+                    Command::CommandReadRange,
+                    pkt,
+                    true,
+                    200,
+                    Response::ResponseReadRange,
+                )
+                .await
+                .unwrap();
 
                 let (_ver, _header_len, whole_len) =
                     match parse_tbf_header_lengths(&message[0..8].try_into().unwrap()) {
-                        Ok((ver, header_len, whole_len)) if header_len != 0 => (ver, header_len, whole_len),
+                        Ok((ver, header_len, whole_len)) if header_len != 0 => {
+                            (ver, header_len, whole_len)
+                        }
                         _ => break, // No more apps
                     };
-        
+
                 address += whole_len as u64;
             }
 
-            let mut binary = tab_file
-                .extract_binary(&arch.clone())
-                .unwrap();
-
+            let mut binary = tab_file.extract_binary(&arch.clone()).unwrap();
 
             let size = binary.len() as u64;
 
@@ -431,7 +426,9 @@ pub async fn install_app_serial(
             let mut ending_pages: Vec<u8> = Vec::new();
             for &i in &valid_pages {
                 let mut iter = valid_pages.iter();
-                if iter.find(|&&x| x == (i + 1)).is_none() && (i + 1) < (binary_len / page_size) as u8 {
+                if iter.find(|&&x| x == (i + 1)).is_none()
+                    && (i + 1) < (binary_len / page_size) as u8
+                {
                     ending_pages.push(i + 1);
                 }
             }
@@ -456,15 +453,15 @@ pub async fn install_app_serial(
 
                 // Write to bootloader
                 let (_, _) = issue_command(
-                        &mut port,
-                        Command::CommandWritePage,
-                        pkt,
-                        true,
-                        0,
-                        Response::ResponseOK,
-                    )
-                    .await
-                    .unwrap();
+                    &mut port,
+                    Command::CommandWritePage,
+                    pkt,
+                    true,
+                    0,
+                    Response::ResponseOK,
+                )
+                .await
+                .unwrap();
             }
 
             new_address += binary.len() as u64;
@@ -473,16 +470,15 @@ pub async fn install_app_serial(
             dbg!(pkt.clone());
 
             let (_, _) = issue_command(
-                    &mut port,
-                    Command::CommandErasePage,
-                    pkt,
-                    true,
-                    0,
-                    Response::ResponseOK,
-                )
-                .await
-                .unwrap();
-
+                &mut port,
+                Command::CommandErasePage,
+                pkt,
+                true,
+                0,
+                Response::ResponseOK,
+            )
+            .await
+            .unwrap();
         }
         _ => {
             // TODO(Micu Ana): Add error handling

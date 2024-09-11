@@ -33,10 +33,7 @@ impl Connection {
                     .timeout(Duration::from_millis(500));
 
                 match SerialStream::open(&builder) {
-                    Ok(port) => {
-                        
-                        Ok(Connection::Serial(port))
-                    }
+                    Ok(port) => Ok(Connection::Serial(port)),
                     Err(_) => {
                         //TODO(Micu Ana): Add error handling
                         Err(TockloaderError::NoPortAvailable)

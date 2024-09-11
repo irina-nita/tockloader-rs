@@ -142,94 +142,90 @@ pub async fn issue_command(
     response_len: usize,
     response_code: Response,
 ) -> Result<(Response, Vec<u8>), TockloaderError> {
-        // Setup a command to send to the bootloader and handle the response
-        // Generate the message to send to the bootloader
-        let mut i = 0;
-        while i < message.len() {
-            if message[i] == ESCAPE_CHAR {
-                // Escaped by replacing all 0xFC with two consecutive 0xFC - tock bootloader readme
-                message.insert(i + 1, ESCAPE_CHAR);
-                // Skip the inserted character
-                i += 2;
-            } else {
-                i += 1;
-            }
+    // Setup a command to send to the bootloader and handle the response
+    // Generate the message to send to the bootloader
+    let mut i = 0;
+    while i < message.len() {
+        if message[i] == ESCAPE_CHAR {
+            // Escaped by replacing all 0xFC with two consecutive 0xFC - tock bootloader readme
+            message.insert(i + 1, ESCAPE_CHAR);
+            // Skip the inserted character
+            i += 2;
+        } else {
+            i += 1;
         }
-        message.push(ESCAPE_CHAR);
-        message.push(command as u8);
+    }
+    message.push(ESCAPE_CHAR);
+    message.push(command as u8);
 
-        // If there should be a sync/reset message, prepend the outgoing message with it
-        if sync {
-            message.insert(0, SYNC_MESSAGE[0]);
-            message.insert(1, SYNC_MESSAGE[1]);
-            message.insert(2, SYNC_MESSAGE[2]);
+    // If there should be a sync/reset message, prepend the outgoing message with it
+    if sync {
+        message.insert(0, SYNC_MESSAGE[0]);
+        message.insert(1, SYNC_MESSAGE[1]);
+        message.insert(2, SYNC_MESSAGE[2]);
+    }
+
+    println!("Want to write {} bytes.", message.len());
+
+    // Write the command message
+    let mut bytes_written = 0;
+    while bytes_written != message.len() {
+        bytes_written += port.write_buf(&mut &message[bytes_written..]).await?;
+    }
+    println!("Wrote {} bytes", bytes_written);
+
+    // Response has a two byte header, then response_len bytes
+    let bytes_to_read = 2 + response_len;
+    let mut ret = BytesMut::with_capacity(2);
+
+    // We are waiting for 2 bytes to be read
+    let mut read_bytes = 0;
+    while read_bytes < 2 {
+        read_bytes += port.read_buf(&mut ret).await?;
+    }
+    println!("Read {} bytes", read_bytes);
+    println!("{:?}", ret);
+
+    if ret[0] != ESCAPE_CHAR {
+        //TODO(Micu Ana): Add error handling
+        println!("Returning because first character is not escape");
+        return Ok((Response::from(ret[1]), vec![]));
+    }
+
+    if ret[1] != response_code.clone() as u8 {
+        //TODO(Micu Ana): Add error handling
+        dbg!(ret[1]);
+        dbg!(response_code.clone() as u8);
+        println!("Returning because second character is not response");
+        return Ok((Response::from(ret[1]), vec![]));
+    }
+
+    let mut new_data: Vec<u8> = Vec::new();
+    let mut value = 2;
+
+    dbg!(response_len);
+    if response_len != 0 {
+        while bytes_to_read > value {
+            value += port.read_buf(&mut new_data).await?;
         }
+        dbg!(value);
 
-        println!("Want to write {} bytes.", message.len());
-
-        // Write the command message
-        let mut bytes_written = 0;
-        while bytes_written != message.len() {
-            bytes_written += port
-                .write_buf(&mut &message[bytes_written..])
-                .await?;
-        }
-        println!("Wrote {} bytes", bytes_written);
-
-        // Response has a two byte header, then response_len bytes
-        let bytes_to_read = 2 + response_len;
-        let mut ret = BytesMut::with_capacity(2);
-
-        // We are waiting for 2 bytes to be read
-        let mut read_bytes = 0;
-        while read_bytes < 2 {
-            read_bytes += port.read_buf(&mut ret).await?;
-        }
-        println!("Read {} bytes", read_bytes);
-        println!("{:?}", ret);
-
-        if ret[0] != ESCAPE_CHAR {
-            //TODO(Micu Ana): Add error handling
-            println!("Returning because first character is not escape");
-            return Ok((Response::from(ret[1]), vec![]));
-
-        }
-
-        if ret[1] != response_code.clone() as u8 {
-            //TODO(Micu Ana): Add error handling
-            dbg!(ret[1]);
-            dbg!(response_code.clone() as u8 );
-            println!("Returning because second character is not response");
-            return Ok((Response::from(ret[1]), vec![]));
-        }
-
-        let mut new_data: Vec<u8> = Vec::new();
-        let mut value = 2;
-
-
-        dbg!(response_len);
-        if response_len != 0 {
-            while bytes_to_read > value {
-                value += port.read_buf(&mut new_data).await?;
-            }
-            dbg!(value);
-
-            // De-escape and add array of read in the bytes
-            for i in 0..(new_data.len() - 1) {
-                if new_data[i] == ESCAPE_CHAR {
-                    if new_data[i + 1] == ESCAPE_CHAR {
-                        new_data.remove(i + 1);
-                    }
+        // De-escape and add array of read in the bytes
+        for i in 0..(new_data.len() - 1) {
+            if new_data[i] == ESCAPE_CHAR {
+                if new_data[i + 1] == ESCAPE_CHAR {
+                    new_data.remove(i + 1);
                 }
             }
-
-            ret.extend_from_slice(&new_data);
         }
 
-        if ret.len() != (2 + response_len) {
-            // TODO(Micu Ana): Add error handling
-            return Ok((Response::from(ret[1]), vec![]));
-        }
+        ret.extend_from_slice(&new_data);
+    }
 
-        Ok((Response::from(ret[1]), ret[2..].to_vec()))
+    if ret.len() != (2 + response_len) {
+        // TODO(Micu Ana): Add error handling
+        return Ok((Response::from(ret[1]), vec![]));
+    }
+
+    Ok((Response::from(ret[1]), ret[2..].to_vec()))
 }
