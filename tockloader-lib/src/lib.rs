@@ -57,7 +57,7 @@ pub async fn list_probe(
 }
 
 pub async fn list_serial(_choice: Connection) -> Result<Vec<AppAttributes>, TockloaderError> {
-    todo!();
+    todo!()
 }
 
 pub async fn info_probe(
@@ -85,19 +85,11 @@ pub async fn info_serial(_choice: Connection) -> Result<GeneralAttributes, Tockl
 
 pub async fn install_app_probe_rs(
     choice: Connection,
-    board: &String,
     core_index: &usize,
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-            // Verify if the specified app is compatible with board
-            // TODO(Micu Ana): Replace the prints with log messages
-            if tab_file.is_compatible_with_board(board) {
-                println!("Specified tab is compatible with board.");
-            } else {
-                panic!("Specified tab is not compatible with board.");
-            }
 
             // Get core - if not specified, by default is 0
             // TODO (Micu Ana): Add error handling
@@ -105,8 +97,17 @@ pub async fn install_app_probe_rs(
 
             // Get board data
             let system_attributes = SystemAttributes::read_system_attributes(&mut core);
+            let board = system_attributes.board.unwrap();
             let kernel_version = system_attributes.kernel_version.unwrap();
             println!("Kernel version of board: {}", kernel_version);
+
+            // Verify if the specified app is compatible with board
+            // TODO(Micu Ana): Replace the prints with log messages
+            if tab_file.is_compatible_with_board(&board) {
+                println!("Specified tab is compatible with board.");
+            } else {
+                panic!("Specified tab is not compatible with board.");
+            }
 
             // Verify if the specified app is compatible with kernel version
             // TODO(Micu Ana): Replace the prints with log messages
@@ -250,22 +251,11 @@ pub async fn install_app_probe_rs(
 
 pub async fn install_app_serial(
     choice: Connection,
-    board: &String,
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     match choice {
         Connection::Serial(mut port) => {
-            // Verify if the specified app is compatible with board
-            if tab_file.is_compatible_with_board(board) {
-                println!("Specified tab is compatible with board.");
-            } else {
-                panic!("Specified tab is not compatible with board.");
-            }
-
-
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
-
-            dbg!(response.clone());
 
             if response as u8 != Response::ResponsePong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -292,8 +282,9 @@ pub async fn install_app_serial(
 
             let mut data = message.chunks(64);
 
-            let mut address = 0 as u64;
-            let mut arch = String::new();    
+            let mut board = String::new();
+            let mut arch = String::new();
+            let mut address = 0 as u64;    
 
             for index_data in 0..data.len() {
                 let step = match data.next() {
@@ -310,7 +301,9 @@ pub async fn install_app_serial(
                 let decoded_attributes = step_option.unwrap();
 
                 match index_data {
-                    0 => {}
+                    0 => {
+                        board = decoded_attributes.value.to_string();
+                    }
                     1 => {
                         arch = decoded_attributes.value.to_string();
                     }
@@ -321,6 +314,13 @@ pub async fn install_app_serial(
                     3 => {}
                     _ => panic!("Board data not found!"),
                 }
+            }
+
+            // Verify if the specified app is compatible with board
+            if tab_file.is_compatible_with_board(&board) {
+                println!("Specified tab is compatible with board.");
+            } else {
+                panic!("Specified tab is not compatible with board.");
             }
 
             let mut pkt = ((address - 100) as u32).to_le_bytes().to_vec();
