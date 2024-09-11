@@ -96,7 +96,6 @@ async fn run() -> Result<(), TockloaderError> {
                 // Install app
                 install_app_serial(
                     conn.unwrap(),
-                    sub_matches.get_one::<String>("board").unwrap(),
                     tab_file,
                 )
                 .await
@@ -113,7 +112,6 @@ async fn run() -> Result<(), TockloaderError> {
                 // Install app
                 install_app_probe_rs(
                     conn.unwrap(),
-                    sub_matches.get_one::<String>("board").unwrap(),
                     sub_matches.get_one::<usize>("core").unwrap(),
                     tab_file,
                 )
