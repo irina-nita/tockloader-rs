@@ -343,15 +343,10 @@ pub async fn install_app_serial(
             let kernel_version = LittleEndian::read_uint(&message[95..96], 1);
 
             // Verify if the specified app is compatible with kernel version
-            match tab_file.is_compatible_with_kernel_verison(kernel_version as f32) {
-                Ok(value) => {
-                    if value {
-                        println!("Specified tab is compatible with your kernel version.");
-                    } else {
-                        println!("Specified tab is not compatible with your kernel version.");
-                    }
-                }
-                Err(e) => println!("Something went wrong: {:?}", e),
+            if tab_file.is_compatible_with_kernel_verison(kernel_version as u32) {
+                println!("Specified tab is compatible with your kernel version.");
+            } else {
+                println!("Specified tab is not compatible with your kernel version.");
             }
 
             loop {
@@ -383,7 +378,7 @@ pub async fn install_app_serial(
             }
 
             let mut binary = tab_file
-                .extract_binary(Some(arch.clone()))
+                .extract_binary(&arch.clone())
                 .unwrap();
 
 
