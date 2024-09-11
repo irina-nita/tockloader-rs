@@ -84,7 +84,6 @@ pub async fn install_app_probe_rs(
 ) -> Result<(), TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-
             // Get core - if not specified, by default is 0
             // TODO (Micu Ana): Add error handling
             let mut core = session.core(*core_index).unwrap();
