@@ -109,7 +109,7 @@ pub async fn toggle_bootloader_entry_dtr_rts(port: &mut SerialStream) {
 pub async fn ping_bootloader_and_wait_for_response(
     port: &mut SerialStream,
 ) -> Result<Response, TockloaderError> {
-    let ping_pkt = vec![ESCAPE_CHAR, Command::CommandPing as u8];
+    let ping_pkt = [ESCAPE_CHAR, Command::CommandPing as u8];
 
     let mut ret = BytesMut::with_capacity(200);
 
@@ -130,7 +130,7 @@ pub async fn ping_bootloader_and_wait_for_response(
         }
     }
     // TODO(Micu Ana): Add error handling
-    return Ok(Response::from(ret[1]));
+    Ok(Response::from(ret[1]))
 }
 
 #[allow(dead_code)]
@@ -212,10 +212,8 @@ pub async fn issue_command(
 
         // De-escape and add array of read in the bytes
         for i in 0..(new_data.len() - 1) {
-            if new_data[i] == ESCAPE_CHAR {
-                if new_data[i + 1] == ESCAPE_CHAR {
-                    new_data.remove(i + 1);
-                }
+            if new_data[i] == ESCAPE_CHAR && new_data[i + 1] == ESCAPE_CHAR {
+                new_data.remove(i + 1);
             }
         }
 
