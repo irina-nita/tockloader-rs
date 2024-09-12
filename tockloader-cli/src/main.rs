@@ -129,12 +129,7 @@ async fn run() -> Result<(), TockloaderError> {
                 // Open connection
                 let conn = Connection::open(ConnectionInfo::from(ans), None);
                 // Install app
-                install_app_serial(
-                    conn.unwrap(),
-                    tab_file
-                )
-                .await
-                .unwrap();
+                install_app_serial(conn.unwrap(), tab_file).await.unwrap();
             } else {
                 // TODO(Micu Ana): Add error handling
                 let ans = Select::new("Which debug probe do you want to use?", list_debug_probes())

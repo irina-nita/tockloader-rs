@@ -3,9 +3,9 @@
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
 pub mod attributes;
+pub(crate) mod bootloader_serial;
 pub mod connection;
 mod errors;
-pub(crate) mod bootloader_serial;
 pub mod tabs;
 
 use std::time::Duration;
@@ -59,7 +59,7 @@ pub async fn list_serial(choice: Connection) -> Result<Vec<AppAttributes>, Tockl
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
-            if response as u8 != Response::ResponsePong as u8 {
+            if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 let response = ping_bootloader_and_wait_for_response(&mut port).await?;
                 dbg!(response.clone());
@@ -104,7 +104,7 @@ pub async fn info_serial(choice: Connection) -> Result<GeneralAttributes, Tocklo
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
-            if response as u8 != Response::ResponsePong as u8 {
+            if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 let response = ping_bootloader_and_wait_for_response(&mut port).await?;
                 dbg!(response.clone());
@@ -294,7 +294,7 @@ pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(),
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
-            if response as u8 != Response::ResponsePong as u8 {
+            if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 let response = ping_bootloader_and_wait_for_response(&mut port).await?;
                 dbg!(response.clone());
@@ -331,11 +331,11 @@ pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(),
 
                 let (_, message) = issue_command(
                     &mut port,
-                    Command::CommandReadRange,
+                    Command::ReadRange,
                     pkt,
                     true,
                     200,
-                    Response::ResponseReadRange,
+                    Response::ReadRange,
                 )
                 .await
                 .unwrap();
@@ -432,16 +432,10 @@ pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(),
                 }
 
                 // Write to bootloader
-                let (_, _) = issue_command(
-                    &mut port,
-                    Command::CommandWritePage,
-                    pkt,
-                    true,
-                    0,
-                    Response::ResponseOK,
-                )
-                .await
-                .unwrap();
+                let (_, _) =
+                    issue_command(&mut port, Command::WritePage, pkt, true, 0, Response::OK)
+                        .await
+                        .unwrap();
             }
 
             new_address += binary.len() as u64;
@@ -449,16 +443,9 @@ pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(),
             let pkt = (new_address as u32).to_le_bytes().to_vec();
             dbg!(pkt.clone());
 
-            let (_, _) = issue_command(
-                &mut port,
-                Command::CommandErasePage,
-                pkt,
-                true,
-                0,
-                Response::ResponseOK,
-            )
-            .await
-            .unwrap();
+            let (_, _) = issue_command(&mut port, Command::ErasePage, pkt, true, 0, Response::OK)
+                .await
+                .unwrap();
         }
         _ => {
             // TODO(Micu Ana): Add error handling

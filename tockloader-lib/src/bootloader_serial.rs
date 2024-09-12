@@ -20,77 +20,77 @@ pub const ESCAPE_CHAR: u8 = 0xFC;
 #[allow(dead_code)]
 pub enum Command {
     // Commands from this tool to the bootloader
-    CommandPing = 0x01,
-    CommandInfo = 0x03,
-    CommandID = 0x04,
-    CommandReset = 0x05,
-    CommandErasePage = 0x06,
-    CommandWritePage = 0x07,
-    CommandXEBlock = 0x08,
-    CommandXWPage = 0x09,
-    CommandCRCRX = 0x10,
-    CommandReadRange = 0x11,
-    CommandXRRange = 0x12,
-    CommandSetAttribute = 0x13,
-    CommandGetAttribute = 0x14,
-    CommandCRCInternalFlash = 0x15,
-    CommandCRCEF = 0x16,
-    CommandXEPage = 0x17,
-    CommandXFinit = 0x18,
-    CommandClkOut = 0x19,
-    CommandWUser = 0x20,
-    CommandChangeBaudRate = 0x21,
-    CommandExit = 0x22,
-    CommandSetStartAddress = 0x23,
+    Ping = 0x01,
+    Info = 0x03,
+    ID = 0x04,
+    Reset = 0x05,
+    ErasePage = 0x06,
+    WritePage = 0x07,
+    XEBlock = 0x08,
+    XWPage = 0x09,
+    Crcx = 0x10,
+    ReadRange = 0x11,
+    XRRange = 0x12,
+    SetAttribute = 0x13,
+    GetAttribute = 0x14,
+    CRCInternalFlash = 0x15,
+    Crcef = 0x16,
+    XEPage = 0x17,
+    XFinit = 0x18,
+    ClkOut = 0x19,
+    WUser = 0x20,
+    ChangeBaudRate = 0x21,
+    Exit = 0x22,
+    SetStartAddress = 0x23,
 }
 
 #[derive(Clone, Debug)]
 pub enum Response {
     // Responses from the bootloader
-    ResponseOverflow = 0x10,
-    ResponsePong = 0x11,
-    ResponseBadAddr = 0x12,
-    ResponseIntError = 0x13,
-    ResponseBadArgs = 0x14,
-    ResponseOK = 0x15,
-    ResponseUnknown = 0x16,
-    ResponseXFTimeout = 0x17,
-    ResponseXFEPE = 0x18,
-    ResponseCRCRX = 0x19,
-    ResponseReadRange = 0x20,
-    ResponseXRRange = 0x21,
-    ResponseGetAttribute = 0x22,
-    ResponseCRCInternalFlash = 0x23,
-    ResponseCRCXF = 0x24,
-    ResponseInfo = 0x25,
-    ResponseChangeBaudFail = 0x26,
-    BadResponse,
+    Overflow = 0x10,
+    Pong = 0x11,
+    BadAddr = 0x12,
+    IntError = 0x13,
+    BadArgs = 0x14,
+    OK = 0x15,
+    Unknown = 0x16,
+    XFTimeout = 0x17,
+    Xfepe = 0x18,
+    Crcrx = 0x19,
+    ReadRange = 0x20,
+    XRRange = 0x21,
+    GetAttribute = 0x22,
+    CRCInternalFlash = 0x23,
+    Crcxf = 0x24,
+    Info = 0x25,
+    ChangeBaudFail = 0x26,
+    BadResp,
 }
 
 impl From<u8> for Response {
     fn from(value: u8) -> Self {
         match value {
-            0x10 => Response::ResponseOverflow,
-            0x11 => Response::ResponsePong,
-            0x12 => Response::ResponseBadAddr,
-            0x13 => Response::ResponseIntError,
-            0x14 => Response::ResponseBadArgs,
-            0x15 => Response::ResponseOK,
-            0x16 => Response::ResponseUnknown,
-            0x17 => Response::ResponseXFTimeout,
-            0x18 => Response::ResponseXFEPE,
-            0x19 => Response::ResponseCRCRX,
-            0x20 => Response::ResponseReadRange,
-            0x21 => Response::ResponseXRRange,
-            0x22 => Response::ResponseGetAttribute,
-            0x23 => Response::ResponseCRCInternalFlash,
-            0x24 => Response::ResponseCRCXF,
-            0x25 => Response::ResponseInfo,
-            0x26 => Response::ResponseChangeBaudFail,
+            0x10 => Response::Overflow,
+            0x11 => Response::Pong,
+            0x12 => Response::BadAddr,
+            0x13 => Response::IntError,
+            0x14 => Response::BadArgs,
+            0x15 => Response::OK,
+            0x16 => Response::Unknown,
+            0x17 => Response::XFTimeout,
+            0x18 => Response::Xfepe,
+            0x19 => Response::Crcrx,
+            0x20 => Response::ReadRange,
+            0x21 => Response::XRRange,
+            0x22 => Response::GetAttribute,
+            0x23 => Response::CRCInternalFlash,
+            0x24 => Response::Crcxf,
+            0x25 => Response::Info,
+            0x26 => Response::ChangeBaudFail,
 
             // This error handling is temmporary
             //TODO(Micu Ana): Add error handling
-            _ => Response::BadResponse,
+            _ => Response::BadResp,
         }
     }
 }
@@ -109,7 +109,7 @@ pub async fn toggle_bootloader_entry_dtr_rts(port: &mut SerialStream) {
 pub async fn ping_bootloader_and_wait_for_response(
     port: &mut SerialStream,
 ) -> Result<Response, TockloaderError> {
-    let ping_pkt = [ESCAPE_CHAR, Command::CommandPing as u8];
+    let ping_pkt = [ESCAPE_CHAR, Command::Ping as u8];
 
     let mut ret = BytesMut::with_capacity(200);
 
@@ -125,7 +125,7 @@ pub async fn ping_bootloader_and_wait_for_response(
             read_bytes += port.read_buf(&mut ret).await?;
         }
         println!("Read {} bytes", read_bytes);
-        if ret[1] == Response::ResponsePong as u8 {
+        if ret[1] == Response::Pong as u8 {
             return Ok(Response::from(ret[1]));
         }
     }

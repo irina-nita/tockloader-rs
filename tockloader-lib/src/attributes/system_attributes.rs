@@ -145,11 +145,11 @@ impl SystemAttributes {
 
         let (_, buf) = issue_command(
             port,
-            Command::CommandReadRange,
+            Command::ReadRange,
             pkt,
             true,
             64 * 16,
-            Response::ResponseReadRange,
+            Response::ReadRange,
         )
         .await
         .unwrap();
@@ -202,16 +202,9 @@ impl SystemAttributes {
             pkt.push(i);
         }
 
-        let (_, buf) = issue_command(
-            port,
-            Command::CommandReadRange,
-            pkt,
-            true,
-            8,
-            Response::ResponseReadRange,
-        )
-        .await
-        .unwrap();
+        let (_, buf) = issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange)
+            .await
+            .unwrap();
 
         let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
 
@@ -234,11 +227,11 @@ impl SystemAttributes {
 
         let (_, kernel_attr_binary) = issue_command(
             port,
-            Command::CommandReadRange,
+            Command::ReadRange,
             pkt,
             true,
             100,
-            Response::ResponseReadRange,
+            Response::ReadRange,
         )
         .await
         .unwrap();

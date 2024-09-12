@@ -130,16 +130,10 @@ impl AppAttributes {
                 pkt.push(i);
             }
 
-            let (_, appdata) = issue_command(
-                port,
-                Command::CommandReadRange,
-                pkt,
-                true,
-                8,
-                Response::ResponseReadRange,
-            )
-            .await
-            .unwrap();
+            let (_, appdata) =
+                issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange)
+                    .await
+                    .unwrap();
 
             let tbf_version: u16;
             let header_size: u16;
@@ -162,11 +156,11 @@ impl AppAttributes {
 
             let (_, header_data) = issue_command(
                 port,
-                Command::CommandReadRange,
+                Command::ReadRange,
                 pkt,
                 true,
                 header_size.into(),
-                Response::ResponseReadRange,
+                Response::ReadRange,
             )
             .await
             .unwrap();
@@ -192,13 +186,13 @@ impl AppAttributes {
 
                 let (_, appfooter) = issue_command(
                     port,
-                    Command::CommandReadRange,
+                    Command::ReadRange,
                     pkt,
                     true,
                     (total_footers_size - (footer_offset - binary_end_offset))
                         .try_into()
                         .unwrap(),
-                    Response::ResponseReadRange,
+                    Response::ReadRange,
                 )
                 .await
                 .unwrap();
