@@ -34,28 +34,19 @@ pub fn list_serial_ports() -> Vec<SerialPortInfo> {
     tokio_serial::available_ports().unwrap()
 }
 
-pub async fn list_probe(
+pub async fn list(
     choice: Connection,
-    core_index: &usize,
+    core_index: Option<&usize>,
 ) -> Result<Vec<AppAttributes>, TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-            let mut core = session.core(*core_index).unwrap();
+            let mut core = session.core(*core_index.unwrap()).unwrap();
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             Ok(AppAttributes::read_apps_data_probe(
                 &mut core,
                 system_attributes.appaddr.unwrap(),
             ))
         }
-        _ => {
-            // TODO(Micu Ana): Add error handling
-            Err(TockloaderError::NoPortAvailable)
-        }
-    }
-}
-
-pub async fn list_serial(choice: Connection) -> Result<Vec<AppAttributes>, TockloaderError> {
-    match choice {
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
@@ -73,34 +64,21 @@ pub async fn list_serial(choice: Connection) -> Result<Vec<AppAttributes>, Tockl
                     .await,
             )
         }
-        _ => {
-            // TODO(Micu Ana): Add error handling
-            Err(TockloaderError::NoPortAvailable)
-        }
     }
 }
 
-pub async fn info_probe(
+pub async fn info(
     choice: Connection,
-    core_index: &usize,
+    core_index: Option<&usize>,
 ) -> Result<GeneralAttributes, TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-            let mut core = session.core(*core_index).unwrap();
+            let mut core = session.core(*core_index.unwrap()).unwrap();
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             let apps_details =
                 AppAttributes::read_apps_data_probe(&mut core, system_attributes.appaddr.unwrap());
             Ok(GeneralAttributes::new(system_attributes, apps_details))
         }
-        _ => {
-            // TODO(Micu Ana): Add error handling
-            Err(TockloaderError::NoPortAvailable)
-        }
-    }
-}
-
-pub async fn info_serial(choice: Connection) -> Result<GeneralAttributes, TockloaderError> {
-    match choice {
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
@@ -117,23 +95,19 @@ pub async fn info_serial(choice: Connection) -> Result<GeneralAttributes, Tocklo
                     .await;
             Ok(GeneralAttributes::new(system_attributes, apps_details))
         }
-        _ => {
-            // TODO(Micu Ana): Add error handling
-            Err(TockloaderError::NoPortAvailable)
-        }
     }
 }
 
-pub async fn install_app_probe_rs(
+pub async fn install_app(
     choice: Connection,
-    core_index: &usize,
+    core_index: Option<&usize>,
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
             // Get core - if not specified, by default is 0
             // TODO (Micu Ana): Add error handling
-            let mut core = session.core(*core_index).unwrap();
+            let mut core = session.core(*core_index.unwrap()).unwrap();
 
             // Get board data
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
@@ -279,18 +253,8 @@ pub async fn install_app_probe_rs(
                 // Finally, the data can be programmed
                 loader.commit(&mut session, options).unwrap();
             }
+            Ok(())
         }
-
-        _ => {
-            // TODO(Micu Ana): Add error handling
-            return Err(TockloaderError::NoPortAvailable);
-        }
-    }
-    Ok(())
-}
-
-pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(), TockloaderError> {
-    match choice {
         Connection::Serial(mut port) => {
             let response = ping_bootloader_and_wait_for_response(&mut port).await?;
 
@@ -443,14 +407,10 @@ pub async fn install_app_serial(choice: Connection, tab_file: Tab) -> Result<(),
             let pkt = (new_address as u32).to_le_bytes().to_vec();
             dbg!(pkt.clone());
 
-            let (_, _) = issue_command(&mut port, Command::ErasePage, pkt, true, 0, Response::OK)
+            let _ = issue_command(&mut port, Command::ErasePage, pkt, true, 0, Response::OK)
                 .await
                 .unwrap();
-        }
-        _ => {
-            // TODO(Micu Ana): Add error handling
-            return Err(TockloaderError::NoPortAvailable);
+            Ok(())
         }
     }
-    Ok(())
 }

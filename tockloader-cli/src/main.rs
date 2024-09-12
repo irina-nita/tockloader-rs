@@ -12,8 +12,7 @@ use errors::TockloaderError;
 use inquire::Select;
 use tockloader_lib::{
     connection::{Connection, ConnectionInfo},
-    info_probe, info_serial, install_app_probe_rs, install_app_serial, list_debug_probes,
-    list_probe, list_serial, list_serial_ports,
+    info, install_app, list, list_debug_probes, list_serial_ports,
     tabs::tab::Tab,
 };
 
@@ -57,7 +56,7 @@ async fn run() -> Result<(), TockloaderError> {
                 // Open connection
                 let conn = Connection::open(ConnectionInfo::from(ans), None);
                 // Install app
-                let mut apps_details = list_serial(conn.unwrap()).await.unwrap();
+                let mut apps_details = list(conn.unwrap(), None).await.unwrap();
                 print_list(&mut apps_details).await;
             } else {
                 // TODO(george-cosma):inspect-err
@@ -70,10 +69,9 @@ async fn run() -> Result<(), TockloaderError> {
                     Some(sub_matches.get_one::<String>("chip").unwrap().to_string()),
                 );
 
-                let mut apps_details =
-                    list_probe(conn.unwrap(), sub_matches.get_one::<usize>("core").unwrap())
-                        .await
-                        .unwrap();
+                let mut apps_details = list(conn.unwrap(), sub_matches.get_one::<usize>("core"))
+                    .await
+                    .unwrap();
                 print_list(&mut apps_details).await;
             }
         }
@@ -91,7 +89,7 @@ async fn run() -> Result<(), TockloaderError> {
                     .unwrap();
                 // Open connection
                 let conn = Connection::open(ConnectionInfo::from(ans), None);
-                let mut attributes = info_serial(conn.unwrap()).await.unwrap();
+                let mut attributes = info(conn.unwrap(), None).await.unwrap();
                 print_info(&mut attributes.apps, &mut attributes.system).await;
             } else {
                 // TODO(Micu Ana): Add error handling
@@ -103,10 +101,9 @@ async fn run() -> Result<(), TockloaderError> {
                     Some(sub_matches.get_one::<String>("chip").unwrap().to_string()),
                 );
 
-                let mut attributes =
-                    info_probe(conn.unwrap(), sub_matches.get_one::<usize>("core").unwrap())
-                        .await
-                        .unwrap();
+                let mut attributes = info(conn.unwrap(), sub_matches.get_one::<usize>("core"))
+                    .await
+                    .unwrap();
 
                 print_info(&mut attributes.apps, &mut attributes.system).await;
             }
@@ -129,7 +126,7 @@ async fn run() -> Result<(), TockloaderError> {
                 // Open connection
                 let conn = Connection::open(ConnectionInfo::from(ans), None);
                 // Install app
-                install_app_serial(conn.unwrap(), tab_file).await.unwrap();
+                install_app(conn.unwrap(), None, tab_file).await.unwrap();
             } else {
                 // TODO(Micu Ana): Add error handling
                 let ans = Select::new("Which debug probe do you want to use?", list_debug_probes())
@@ -140,9 +137,9 @@ async fn run() -> Result<(), TockloaderError> {
                     Some(sub_matches.get_one::<String>("chip").unwrap().to_string()),
                 );
                 // Install app
-                install_app_probe_rs(
+                install_app(
                     conn.unwrap(),
-                    sub_matches.get_one::<usize>("core").unwrap(),
+                    sub_matches.get_one::<usize>("core"),
                     tab_file,
                 )
                 .await
