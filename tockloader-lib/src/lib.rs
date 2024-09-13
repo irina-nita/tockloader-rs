@@ -30,7 +30,8 @@ pub fn list_debug_probes() -> Vec<DebugProbeInfo> {
 }
 
 pub fn list_serial_ports() -> Result<Vec<SerialPortInfo>, TockloaderError> {
-    tokio_serial::available_ports().map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))
+    tokio_serial::available_ports()
+        .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))
 }
 
 pub async fn list(

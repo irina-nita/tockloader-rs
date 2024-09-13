@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use std::time::Duration;
 use probe_rs::{probe::DebugProbeInfo, Permissions, Session};
+use std::time::Duration;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialStream, StopBits};
 
-use crate::errors::{TockloaderError, ForeignError};
+use crate::errors::{ForeignError, TockloaderError};
 
 pub enum ConnectionInfo {
     SerialInfo(String),
@@ -31,12 +31,18 @@ impl Connection {
                 let builder = tokio_serial::new(serial_info, 115200);
                 match SerialStream::open(&builder) {
                     Ok(mut port) => {
-                        port.set_parity(Parity::None).map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
-                        port.set_stop_bits(StopBits::One).map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
-                        port.set_flow_control(FlowControl::None).map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
-                        port.set_timeout(Duration::from_millis(500)).map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
-                        port.write_request_to_send(false).map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
-                        port.write_data_terminal_ready(false).map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                        port.set_parity(Parity::None)
+                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                        port.set_stop_bits(StopBits::One)
+                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                        port.set_flow_control(FlowControl::None)
+                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                        port.set_timeout(Duration::from_millis(500))
+                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                        port.write_request_to_send(false)
+                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                        port.write_data_terminal_ready(false)
+                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
                         Ok(Connection::Serial(port))
                     }
                     Err(e) => Err(TockloaderError::Connection(ForeignError::Serial(e))),
@@ -44,8 +50,12 @@ impl Connection {
             }
             ConnectionInfo::ProbeInfo(probe_info) => {
                 // Handle ProbeRS errors properly
-                let probe = probe_info.open().map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(probe_rs::Error::Probe(e))))?;
-                let session = probe.attach(chip.unwrap(), Permissions::default()).map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(e)))?;
+                let probe = probe_info.open().map_err(|e| {
+                    TockloaderError::Connection(ForeignError::ProbeRS(probe_rs::Error::Probe(e)))
+                })?;
+                let session = probe
+                    .attach(chip.unwrap(), Permissions::default())
+                    .map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(e)))?;
                 Ok(Connection::ProbeRS(session))
             }
         }

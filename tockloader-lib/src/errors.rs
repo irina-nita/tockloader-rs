@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use thiserror::Error;
-use std::io;
 use probe_rs::Error as ProbeRSError;
+use std::io;
+use thiserror::Error;
 use tokio_serial::Error as SerialError;
 
 #[derive(Debug, Error)]
