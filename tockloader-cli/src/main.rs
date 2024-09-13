@@ -43,7 +43,7 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("list", sub_matches)) => {
             if *sub_matches.get_one::<bool>("serial").unwrap() {
-                let serial_ports = list_serial_ports();
+                let serial_ports = list_serial_ports().unwrap();
                 // Let the user choose the port that will be used
                 let mut port_names = Vec::new();
                 for port in serial_ports {
@@ -77,7 +77,7 @@ async fn run() -> Result<(), TockloaderError> {
         }
         Some(("info", sub_matches)) => {
             if *sub_matches.get_one::<bool>("serial").unwrap() {
-                let serial_ports = list_serial_ports();
+                let serial_ports = list_serial_ports().unwrap();
                 // Let the user choose the port that will be used
                 let mut port_names = Vec::new();
                 for port in serial_ports {
@@ -113,7 +113,7 @@ async fn run() -> Result<(), TockloaderError> {
                 Tab::open(sub_matches.get_one::<String>("tab").unwrap().to_string()).unwrap();
             // If "--serial" flag is used, we choose the serial connection
             if *sub_matches.get_one::<bool>("serial").unwrap() {
-                let serial_ports = list_serial_ports();
+                let serial_ports = list_serial_ports().unwrap();
                 // Let the user choose the port that will be used
                 let mut port_names = Vec::new();
                 for port in serial_ports {

@@ -20,7 +20,7 @@ use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
 use probe_rs::MemoryInterface;
 
-use errors::TockloaderError;
+use errors::{ForeignError, TockloaderError};
 use tabs::tab::Tab;
 use tbf_parser::parse::parse_tbf_header_lengths;
 use tokio_serial::SerialPortInfo;
@@ -29,9 +29,8 @@ pub fn list_debug_probes() -> Vec<DebugProbeInfo> {
     probe_rs::probe::list::Lister::new().list_all()
 }
 
-pub fn list_serial_ports() -> Vec<SerialPortInfo> {
-    //TODO(Micu Ana): Add error handling
-    tokio_serial::available_ports().unwrap()
+pub fn list_serial_ports() -> Result<Vec<SerialPortInfo>, TockloaderError> {
+    tokio_serial::available_ports().map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))
 }
 
 pub async fn list(
