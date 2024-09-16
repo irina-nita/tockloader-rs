@@ -96,13 +96,25 @@ impl From<u8> for Response {
 }
 
 #[allow(dead_code)]
-pub async fn toggle_bootloader_entry_dtr_rts(port: &mut SerialStream) {
-    port.write_data_terminal_ready(true).unwrap();
-    port.write_request_to_send(true).unwrap();
+pub async fn toggle_bootloader_entry_dtr_rts(
+    port: &mut SerialStream,
+) -> Result<(), TockloaderError> {
+    port.write_data_terminal_ready(true)
+    .map_err(TockloaderError::SerialInitializationError)?;
+    port.write_request_to_send(true)
+    .map_err(TockloaderError::SerialInitializationError)?;
+
     tokio::time::sleep(Duration::from_millis(100)).await;
-    port.write_data_terminal_ready(false).unwrap();
+
+    port.write_data_terminal_ready(false)
+    .map_err(TockloaderError::SerialInitializationError)?;
+
     tokio::time::sleep(Duration::from_millis(500)).await;
-    port.write_request_to_send(false).unwrap();
+
+    port.write_request_to_send(false)
+    .map_err(TockloaderError::SerialInitializationError)?;
+
+    Ok(())
 }
 
 #[allow(dead_code)]

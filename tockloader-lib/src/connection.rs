@@ -1,12 +1,9 @@
-// Licensed under the Apache License, Version 2.0 or the MIT License.
-// SPDX-License-Identifier: Apache-2.0 OR MIT
-// Copyright OXIDOS AUTOMOTIVE 2024.
+use std::time::Duration;
 
 use probe_rs::{probe::DebugProbeInfo, Permissions, Session};
-use std::time::Duration;
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialStream, StopBits};
 
-use crate::errors::{ForeignError, TockloaderError};
+use crate::errors::TockloaderError;
 
 pub enum ConnectionInfo {
     SerialInfo(String),
@@ -32,30 +29,30 @@ impl Connection {
                 match SerialStream::open(&builder) {
                     Ok(mut port) => {
                         port.set_parity(Parity::None)
-                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                            .map_err(TockloaderError::SerialInitializationError)?;
                         port.set_stop_bits(StopBits::One)
-                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                            .map_err(TockloaderError::SerialInitializationError)?;
                         port.set_flow_control(FlowControl::None)
-                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                            .map_err(TockloaderError::SerialInitializationError)?;
                         port.set_timeout(Duration::from_millis(500))
-                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                            .map_err(TockloaderError::SerialInitializationError)?;
                         port.write_request_to_send(false)
-                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                            .map_err(TockloaderError::SerialInitializationError)?;
                         port.write_data_terminal_ready(false)
-                            .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))?;
+                            .map_err(TockloaderError::SerialInitializationError)?;
                         Ok(Connection::Serial(port))
                     }
-                    Err(e) => Err(TockloaderError::Connection(ForeignError::Serial(e))),
+                    Err(e) => Err(TockloaderError::SerialInitializationError(e)),
                 }
             }
             ConnectionInfo::ProbeInfo(probe_info) => {
-                let probe = probe_info.open().map_err(|e| {
-                    TockloaderError::Connection(ForeignError::ProbeRS(probe_rs::Error::Probe(e)))
-                })?;
-                let session = probe
-                    .attach(chip.unwrap(), Permissions::default())
-                    .map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(e)))?;
-                Ok(Connection::ProbeRS(session))
+                let probe = probe_info
+                    .open()
+                    .map_err(TockloaderError::ProbeRsInitializationError)?;
+                match probe.attach(chip.unwrap(), Permissions::default()) {
+                    Ok(session) => Ok(Connection::ProbeRS(session)),
+                    Err(e) => Err(TockloaderError::ProbeRsCommunicationError(e)),
+                }
             }
         }
     }

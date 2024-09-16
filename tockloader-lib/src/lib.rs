@@ -20,7 +20,7 @@ use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
 use probe_rs::MemoryInterface;
 
-use errors::{ForeignError, TockloaderError};
+use errors::TockloaderError;
 use tabs::tab::Tab;
 use tbf_parser::parse::parse_tbf_header_lengths;
 use tokio_serial::SerialPortInfo;
@@ -30,8 +30,7 @@ pub fn list_debug_probes() -> Vec<DebugProbeInfo> {
 }
 
 pub fn list_serial_ports() -> Result<Vec<SerialPortInfo>, TockloaderError> {
-    tokio_serial::available_ports()
-        .map_err(|e| TockloaderError::Connection(ForeignError::Serial(e)))
+    tokio_serial::available_ports().map_err(TockloaderError::SerialInitializationError)
 }
 
 pub async fn list(
@@ -40,7 +39,9 @@ pub async fn list(
 ) -> Result<Vec<AppAttributes>, TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-            let mut core = session.core(*core_index.unwrap()).map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(e)))?;
+            let mut core = session
+                .core(*core_index.unwrap())
+                .map_err(TockloaderError::ProbeRsCommunicationError)?;
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             Ok(AppAttributes::read_apps_data_probe(
                 &mut core,
@@ -52,8 +53,7 @@ pub async fn list(
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let response = ping_bootloader_and_wait_for_response(&mut port).await?;
-                dbg!(response.clone());
+                let _ = ping_bootloader_and_wait_for_response(&mut port).await?;
             }
 
             let system_attributes =
@@ -73,7 +73,9 @@ pub async fn info(
 ) -> Result<GeneralAttributes, TockloaderError> {
     match choice {
         Connection::ProbeRS(mut session) => {
-            let mut core = session.core(*core_index.unwrap()).map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(e)))?;
+            let mut core = session
+                .core(*core_index.unwrap())
+                .map_err(TockloaderError::ProbeRsCommunicationError)?;
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             let apps_details =
                 AppAttributes::read_apps_data_probe(&mut core, system_attributes.appaddr.unwrap());
@@ -107,8 +109,9 @@ pub async fn install_app(
         Connection::ProbeRS(mut session) => {
             // Get core - if not specified, by default is 0
             // TODO (Micu Ana): Add error handling
-            let mut core = session.core(*core_index.unwrap()).map_err(|e| TockloaderError::Connection(ForeignError::ProbeRS(e)))?;
-
+            let mut core = session
+                .core(*core_index.unwrap())
+                .map_err(TockloaderError::ProbeRsCommunicationError)?;
             // Get board data
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             let board = system_attributes.board.unwrap();
