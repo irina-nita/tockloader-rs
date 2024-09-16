@@ -49,7 +49,6 @@ impl Connection {
                 }
             }
             ConnectionInfo::ProbeInfo(probe_info) => {
-                // Handle ProbeRS errors properly
                 let probe = probe_info.open().map_err(|e| {
                     TockloaderError::Connection(ForeignError::ProbeRS(probe_rs::Error::Probe(e)))
                 })?;

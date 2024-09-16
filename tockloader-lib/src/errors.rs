@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-use probe_rs::Error as ProbeRSError;
 use std::io;
 use thiserror::Error;
-use tokio_serial::Error as SerialError;
 
 #[derive(Debug, Error)]
 pub enum TockloaderError {
@@ -22,8 +20,8 @@ pub enum TockloaderError {
 #[derive(Debug, Error)]
 pub enum ForeignError {
     #[error("ProbeRS error: {0}")]
-    ProbeRS(#[from] ProbeRSError),
+    ProbeRS(#[from] probe_rs::Error),
 
     #[error("Serial error: {0}")]
-    Serial(#[from] SerialError),
+    Serial(#[from] tokio_serial::Error),
 }
