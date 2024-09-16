@@ -20,9 +20,12 @@ pub enum TockloaderError {
     #[error("Failed to initialize serial connection due to a communication error. Inner: {0}")]
     SerialInitializationError(#[from] tokio_serial::Error),
 
+    #[error("Bootloader did not respond properly: {0}")]
+    BootloaderError(u8),
+
+    #[error("Failed to perform read/write operations on serial port. Inner: {0}")]
+    IOError(#[from] io::Error),
+
     #[error("Expected board attribute to be present")]
     MisonfiguredBoard(String),
-
-    #[error("IO error: {0}")]
-    IOError(#[from] io::Error),
 }

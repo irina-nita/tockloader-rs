@@ -41,7 +41,7 @@ pub async fn list(
         Connection::ProbeRS(mut session) => {
             let mut core = session
                 .core(*core_index.unwrap())
-                .map_err(TockloaderError::ProbeRsCommunicationError)?;
+                .map_err(|e| TockloaderError::CoreAccessError(*core_index.unwrap(), e))?;
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             Ok(AppAttributes::read_apps_data_probe(
                 &mut core,
@@ -75,7 +75,7 @@ pub async fn info(
         Connection::ProbeRS(mut session) => {
             let mut core = session
                 .core(*core_index.unwrap())
-                .map_err(TockloaderError::ProbeRsCommunicationError)?;
+                .map_err(|e| TockloaderError::CoreAccessError(*core_index.unwrap(), e))?;
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             let apps_details =
                 AppAttributes::read_apps_data_probe(&mut core, system_attributes.appaddr.unwrap());
@@ -108,10 +108,9 @@ pub async fn install_app(
     match choice {
         Connection::ProbeRS(mut session) => {
             // Get core - if not specified, by default is 0
-            // TODO (Micu Ana): Add error handling
             let mut core = session
                 .core(*core_index.unwrap())
-                .map_err(TockloaderError::ProbeRsCommunicationError)?;
+                .map_err(|e| TockloaderError::CoreAccessError(*core_index.unwrap(), e))?;
             // Get board data
             let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
             let board = system_attributes.board.unwrap();
