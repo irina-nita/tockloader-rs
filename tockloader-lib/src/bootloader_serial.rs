@@ -100,19 +100,19 @@ pub async fn toggle_bootloader_entry_dtr_rts(
     port: &mut SerialStream,
 ) -> Result<(), TockloaderError> {
     port.write_data_terminal_ready(true)
-    .map_err(TockloaderError::SerialInitializationError)?;
+        .map_err(TockloaderError::SerialInitializationError)?;
     port.write_request_to_send(true)
-    .map_err(TockloaderError::SerialInitializationError)?;
+        .map_err(TockloaderError::SerialInitializationError)?;
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     port.write_data_terminal_ready(false)
-    .map_err(TockloaderError::SerialInitializationError)?;
+        .map_err(TockloaderError::SerialInitializationError)?;
 
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     port.write_request_to_send(false)
-    .map_err(TockloaderError::SerialInitializationError)?;
+        .map_err(TockloaderError::SerialInitializationError)?;
 
     Ok(())
 }

@@ -27,5 +27,5 @@ pub enum TockloaderError {
     IOError(#[from] io::Error),
 
     #[error("Expected board attribute to be present")]
-    MisonfiguredBoard(String),
+    MisconfiguredBoard(String),
 }
