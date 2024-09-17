@@ -32,6 +32,9 @@ pub enum TockloaderError {
     #[error("No binary found for {0} architecture.")]
     NoBinaryError(String),
 
+    #[error("App data could not be parsed.")]
+    ParsingError(tbf_parser::types::TbfParseError),
+
     #[error("Failed to perform read/write operations on serial port. Inner: {0}")]
     IOError(#[from] io::Error),
 

@@ -60,7 +60,11 @@ impl AppAttributes {
                     let header_size: u16;
                     let total_size: u32;
 
-                    match parse_tbf_header_lengths(&appdata.try_into().expect("Buffer length must be at least 8 bytes long.")) {
+                    match parse_tbf_header_lengths(
+                        &appdata
+                            .try_into()
+                            .expect("Buffer length must be at least 8 bytes long."),
+                    ) {
                         Ok(data) => {
                             tbf_version = data.0;
                             header_size = data.1;
@@ -72,53 +76,53 @@ impl AppAttributes {
                     let mut header_data = vec![0u8; header_size as usize];
 
                     match board_core.read(appaddr, &mut header_data) {
-                        Ok(_) => {
-                            let header: TbfHeader = parse_tbf_header(&header_data, tbf_version)
-                                .unwrap_or_else(|e| {
-                                    panic!("Error found while getting tbf header data: {:?}", e)
-                                });
+                        Ok(_) => match parse_tbf_header(&header_data, tbf_version) {
+                            Ok(header) => {
+                                let binary_end_offset = header.get_binary_end();
 
-                            let binary_end_offset = header.get_binary_end();
+                                let mut footers: Vec<TbfFooter> = vec![];
+                                let total_footers_size = total_size - binary_end_offset;
+                                let mut footer_offset = binary_end_offset;
+                                let mut footer_number = 0;
 
-                            let mut footers: Vec<TbfFooter> = vec![];
-                            let total_footers_size = total_size - binary_end_offset;
-                            let mut footer_offset = binary_end_offset;
-                            let mut footer_number = 0;
+                                loop {
+                                    let mut appfooter = vec![
+                                        0u8;
+                                        (total_footers_size - (footer_offset - binary_end_offset))
+                                            as usize
+                                    ];
 
-                            loop {
-                                let mut appfooter = vec![
-                                    0u8;
-                                    (total_footers_size
-                                        - (footer_offset - binary_end_offset))
-                                    as usize   
-                                ];
+                                    match board_core
+                                        .read(appaddr + footer_offset as u64, &mut appfooter)
+                                    {
+                                        Ok(_) => match parse_tbf_footer(&appfooter) {
+                                            Ok(footer_info) => {
+                                                footers.insert(
+                                                    footer_number,
+                                                    TbfFooter::new(footer_info.0, footer_info.1),
+                                                );
 
-                                // Do not ignore the result of the read operation
-                                board_core
-                                    .read(appaddr + footer_offset as u64, &mut appfooter)
-                                    .unwrap();
+                                                footer_number += 1;
+                                                footer_offset += footer_info.1 + 4;
 
-                                let footer_info: (TbfFooterV2Credentials, u32) =
-                                    parse_tbf_footer(&appfooter).unwrap_or_else(|e| {
-                                        panic!("Paniced while obtaining footer data: {:?}", e)
-                                    });
-
-                                footers.insert(footer_number, TbfFooter::new(footer_info.0, footer_info.1));
-
-                                footer_number += 1;
-                                footer_offset += footer_info.1 + 4;
-
-                                if footer_offset == total_size {
-                                    break;
+                                                if footer_offset == total_size {
+                                                    break;
+                                                }
+                                            }
+                                            Err(e) => return Err(TockloaderError::ParsingError(e)),
+                                        },
+                                        Err(e) => return Err(TockloaderError::ProbeRsReadError(e)),
+                                    }
                                 }
+
+                                let details: AppAttributes = AppAttributes::new(header, footers);
+
+                                apps_details.insert(apps_counter, details);
+                                apps_counter += 1;
+                                appaddr += total_size as u64;
                             }
-
-                            let details: AppAttributes = AppAttributes::new(header, footers);
-
-                            apps_details.insert(apps_counter, details);
-                            apps_counter += 1;
-                            appaddr += total_size as u64;
-                        }
+                            Err(e) => return Err(TockloaderError::ParsingError(e)),
+                        },
                         Err(e) => {
                             return Err(TockloaderError::ProbeRsReadError(e));
                         }
@@ -148,15 +152,17 @@ impl AppAttributes {
             }
 
             let (_, appdata) =
-                issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange)
-                    .await
-                    .unwrap();
+                issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange).await?;
 
             let tbf_version: u16;
             let header_size: u16;
             let total_size: u32;
 
-            match parse_tbf_header_lengths(&appdata[0..8].try_into().expect("Buffer length must be at least 8 bytes long.")) {
+            match parse_tbf_header_lengths(
+                &appdata[0..8]
+                    .try_into()
+                    .expect("Buffer length must be at least 8 bytes long."),
+            ) {
                 Ok(data) => {
                     tbf_version = data.0;
                     header_size = data.1;
@@ -181,54 +187,61 @@ impl AppAttributes {
             )
             .await?;
 
-            let header: TbfHeader = parse_tbf_header(&header_data, tbf_version)
-                .unwrap_or_else(|e| panic!("Error found while getting tbf header data: {:?}", e));
+            match parse_tbf_header(&header_data, tbf_version) {
+                Ok(header) => {
+                    let binary_end_offset = header.get_binary_end();
 
-            let binary_end_offset = header.get_binary_end();
+                    let mut footers: Vec<TbfFooter> = vec![];
+                    let total_footers_size = total_size - binary_end_offset;
+                    let mut footer_offset = binary_end_offset;
+                    let mut footer_number = 0;
 
-            let mut footers: Vec<TbfFooter> = vec![];
-            let total_footers_size = total_size - binary_end_offset;
-            let mut footer_offset = binary_end_offset;
-            let mut footer_number = 0;
+                    loop {
+                        let mut pkt = (appaddr as u32 + footer_offset).to_le_bytes().to_vec();
+                        let length = ((total_footers_size - (footer_offset - binary_end_offset))
+                            as u16)
+                            .to_le_bytes()
+                            .to_vec();
+                        for i in length {
+                            pkt.push(i);
+                        }
 
-            loop {
-                let mut pkt = (appaddr as u32 + footer_offset).to_le_bytes().to_vec();
-                let length = ((total_footers_size - (footer_offset - binary_end_offset)) as u16)
-                    .to_le_bytes()
-                    .to_vec();
-                for i in length {
-                    pkt.push(i);
+                        let (_, appfooter) = issue_command(
+                            port,
+                            Command::ReadRange,
+                            pkt,
+                            true,
+                            (total_footers_size - (footer_offset - binary_end_offset)) as usize,
+                            Response::ReadRange,
+                        )
+                        .await?;
+
+                        match parse_tbf_footer(&appfooter) {
+                            Ok(footer_info) => {
+                                footers.insert(
+                                    footer_number,
+                                    TbfFooter::new(footer_info.0, footer_info.1),
+                                );
+
+                                footer_number += 1;
+                                footer_offset += footer_info.1 + 4;
+
+                                if footer_offset == total_size {
+                                    break;
+                                }
+                            }
+                            Err(e) => return Err(TockloaderError::ParsingError(e)),
+                        }
+                    }
+
+                    let details: AppAttributes = AppAttributes::new(header, footers);
+
+                    apps_details.insert(apps_counter, details);
+                    apps_counter += 1;
+                    appaddr += total_size as u64;
                 }
-
-                let (_, appfooter) = issue_command(
-                    port,
-                    Command::ReadRange,
-                    pkt,
-                    true,
-                    (total_footers_size - (footer_offset - binary_end_offset))
-                        as usize,
-                    Response::ReadRange,
-                )
-                .await?;
-
-                let footer_info: (TbfFooterV2Credentials, u32) = parse_tbf_footer(&appfooter)
-                    .unwrap_or_else(|e| panic!("Paniced while obtaining footer data: {:?}", e));
-
-                footers.insert(footer_number, TbfFooter::new(footer_info.0, footer_info.1));
-
-                footer_number += 1;
-                footer_offset += footer_info.1 + 4;
-
-                if footer_offset == total_size {
-                    break;
-                }
+                Err(e) => return Err(TockloaderError::ParsingError(e)),
             }
-
-            let details: AppAttributes = AppAttributes::new(header, footers);
-
-            apps_details.insert(apps_counter, details);
-            apps_counter += 1;
-            appaddr += total_size as u64;
         }
         Ok(apps_details)
     }
