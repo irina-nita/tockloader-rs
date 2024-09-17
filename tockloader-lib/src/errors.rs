@@ -15,13 +15,22 @@ pub enum TockloaderError {
     ProbeRsInitializationError(#[from] probe_rs::probe::DebugProbeError),
 
     #[error("Failed to establish communication with board. Inner: {0}")]
-    ProbeRsCommunicationError(#[from] probe_rs::Error),
+    ProbeRsCommunicationError(probe_rs::Error),
+
+    #[error("Failed to read from debug probe. Inner: {0}")]
+    ProbeRsReadError(probe_rs::Error),
+
+    #[error("Failed to write binary. Inner: {0}")]
+    ProbeRsWriteError(#[from] probe_rs::flashing::FlashError),
 
     #[error("Failed to initialize serial connection due to a communication error. Inner: {0}")]
     SerialInitializationError(#[from] tokio_serial::Error),
 
     #[error("Bootloader did not respond properly: {0}")]
     BootloaderError(u8),
+
+    #[error("No binary found for {0} architecture.")]
+    NoBinaryError(String),
 
     #[error("Failed to perform read/write operations on serial port. Inner: {0}")]
     IOError(#[from] io::Error),

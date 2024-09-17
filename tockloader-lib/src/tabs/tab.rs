@@ -76,6 +76,6 @@ impl Tab {
             }
         }
 
-        panic!("No binary found for architecture {}", arch);
+        Err(TockloaderError::NoBinaryError(arch.to_owned()))
     }
 }

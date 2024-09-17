@@ -47,7 +47,10 @@ pub async fn list(
                 .appaddr
                 .ok_or("No start address found.".to_owned());
             match appaddr {
-                Ok(value) => Ok(AppAttributes::read_apps_data_probe(&mut core, value)),
+                Ok(value) => match AppAttributes::read_apps_data_probe(&mut core, value) {
+                    Ok(app_attributes) => Ok(app_attributes),
+                    Err(e) => Err(e),
+                },
                 Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
         }
@@ -66,7 +69,10 @@ pub async fn list(
                 .appaddr
                 .ok_or("No start address found.".to_owned());
             match appaddr {
-                Ok(value) => Ok(AppAttributes::read_apps_data_serial(&mut port, value).await),
+                Ok(value) => match AppAttributes::read_apps_data_serial(&mut port, value).await {
+                    Ok(app_attributes) => Ok(app_attributes),
+                    Err(e) => Err(e),
+                },
                 Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
         }
@@ -87,10 +93,12 @@ pub async fn info(
                 .appaddr
                 .ok_or("No start address found.".to_owned());
             match appaddr {
-                Ok(value) => {
-                    let apps_details = AppAttributes::read_apps_data_probe(&mut core, value);
-                    Ok(GeneralAttributes::new(system_attributes, apps_details))
-                }
+                Ok(value) => match AppAttributes::read_apps_data_probe(&mut core, value) {
+                    Ok(app_attributes) => {
+                        Ok(GeneralAttributes::new(system_attributes, app_attributes))
+                    }
+                    Err(e) => Err(e),
+                },
                 Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
         }
@@ -109,10 +117,12 @@ pub async fn info(
                 .appaddr
                 .ok_or("No start address found.".to_owned());
             match appaddr {
-                Ok(value) => {
-                    let apps_details = AppAttributes::read_apps_data_serial(&mut port, value).await;
-                    Ok(GeneralAttributes::new(system_attributes, apps_details))
-                }
+                Ok(value) => match AppAttributes::read_apps_data_serial(&mut port, value).await {
+                    Ok(app_attributes) => {
+                        Ok(GeneralAttributes::new(system_attributes, app_attributes))
+                    }
+                    Err(e) => Err(e),
+                },
                 Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
         }
@@ -183,121 +193,145 @@ pub async fn install_app(
                         // Read a block of 200 8-bit words
                         let mut buff = vec![0u8; 200];
                         match core.read(address, &mut buff) {
-                            Ok(_) => {}
+                            Ok(_) => {
+                                let (_ver, _header_len, whole_len) = match parse_tbf_header_lengths(
+                                    &buff[0..8]
+                                        .try_into()
+                                        .expect("Buffer length must be at least 8 bytes long."),
+                                ) {
+                                    Ok((ver, header_len, whole_len)) if header_len != 0 => {
+                                        (ver, header_len, whole_len)
+                                    }
+                                    _ => break, // No more apps
+                                };
+                                address += whole_len as u64;
+                            }
                             Err(e) => {
-                                println!("Error reading memory: {:?}", e);
-                                break;
+                                return Err(TockloaderError::ProbeRsReadError(e));
                             }
                         }
-                        let (_ver, _header_len, whole_len) =
-                            match parse_tbf_header_lengths(&buff[0..8].try_into().unwrap()) {
-                                Ok((ver, header_len, whole_len)) if header_len != 0 => {
-                                    (ver, header_len, whole_len)
+                    }
+
+                    let arch = system_attributes
+                        .arch
+                        .ok_or("No architecture found.".to_owned());
+
+                    match arch {
+                        Ok(arch) => {
+                            let binary = tab_file.extract_binary(&arch.clone()); // use the system_attributes arch or the provided one?
+
+                            match binary {
+                                Ok(mut binary) => {
+                                    let size = binary.len() as u64;
+
+                                    // Make sure the app is aligned to a multiple of its size
+                                    let multiple = address / size;
+
+                                    let (new_address, _gap_size) = if multiple * size != address {
+                                        let new_address = ((address + size) / size) * size;
+                                        let gap_size = new_address - address;
+                                        (new_address, gap_size)
+                                    } else {
+                                        (address, 0)
+                                    };
+
+                                    // No more need of core
+                                    drop(core);
+
+                                    // Make sure the binary is a multiple of the page size by padding 0xFFs
+                                    // TODO(Micu Ana): check if the page-size differs
+                                    let page_size = 512;
+                                    let needs_padding = binary.len() % page_size != 0;
+
+                                    if needs_padding {
+                                        let remaining = page_size - (binary.len() % page_size);
+                                        for _i in 0..remaining {
+                                            binary.push(0xFF);
+                                        }
+                                    }
+
+                                    // Get indices of pages that have valid data to write
+                                    let mut valid_pages: Vec<u8> = Vec::new();
+                                    for i in 0..(size as usize / page_size) {
+                                        for b in binary[(i * page_size)..((i + 1) * page_size)]
+                                            .iter()
+                                            .copied()
+                                        {
+                                            if b != 0 {
+                                                valid_pages.push(i as u8);
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // If there are no pages valid, all pages would have been removed, so we write them all
+                                    if valid_pages.is_empty() {
+                                        for i in 0..(size as usize / page_size) {
+                                            valid_pages.push(i as u8);
+                                        }
+                                    }
+
+                                    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
+                                    let mut ending_pages: Vec<u8> = Vec::new();
+                                    for &i in &valid_pages {
+                                        let mut iter = valid_pages.iter();
+                                        if !iter.any(|&x| x == (i + 1))
+                                            && (i + 1) < (size as usize / page_size) as u8
+                                        {
+                                            ending_pages.push(i + 1);
+                                        }
+                                    }
+
+                                    for i in ending_pages {
+                                        valid_pages.push(i);
+                                    }
+
+                                    for i in valid_pages {
+                                        // Create the packet that we send to the bootloader
+                                        // First four bytes are the address of the page
+                                        let mut pkt = Vec::new();
+
+                                        // Then the bytes that go into the page
+                                        for b in binary[(i as usize * page_size)
+                                            ..((i + 1) as usize * page_size)]
+                                            .iter()
+                                            .copied()
+                                        {
+                                            pkt.push(b);
+                                        }
+                                        let mut loader = session.target().flash_loader();
+
+                                        match loader.add_data(
+                                            (new_address as u32 + (i as usize * page_size) as u32)
+                                                .into(),
+                                            &pkt,
+                                        ) {
+                                            Ok(_) => {
+                                                let mut options = DownloadOptions::default();
+                                                options.keep_unwritten_bytes = true;
+
+                                                // Finally, the data can be programmed
+                                                match loader.commit(&mut session, options) {
+                                                    Ok(()) => continue,
+                                                    Err(e) => {
+                                                        return Err(
+                                                            TockloaderError::ProbeRsWriteError(e),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => {
+                                                return Err(TockloaderError::ProbeRsWriteError(e))
+                                            }
+                                        }
+                                    }
+                                    Ok(())
                                 }
-                                _ => break, // No more apps
-                            };
-
-                        address += whole_len as u64;
-                    }
-
-                    let mut binary = tab_file
-                        .extract_binary(&system_attributes.arch.unwrap()) // use the system_attributes arch or the provided one?
-                        .unwrap();
-
-                    let size = binary.len() as u64;
-
-                    // Make sure the app is aligned to a multiple of its size
-                    let multiple = address / size;
-
-                    let (new_address, _gap_size) = if multiple * size != address {
-                        let new_address = ((address + size) / size) * size;
-                        let gap_size = new_address - address;
-                        (new_address, gap_size)
-                    } else {
-                        (address, 0)
-                    };
-
-                    // No more need of core
-                    drop(core);
-
-                    // Make sure the binary is a multiple of the page size by padding 0xFFs
-                    // TODO(Micu Ana): check if the page-size differs
-                    let page_size = 512;
-                    let needs_padding = binary.len() % page_size != 0;
-
-                    if needs_padding {
-                        let remaining = page_size - (binary.len() % page_size);
-                        dbg!(remaining);
-                        for _i in 0..remaining {
-                            binary.push(0xFF);
-                        }
-                    }
-
-                    // Get indices of pages that have valid data to write
-                    let mut valid_pages: Vec<u8> = Vec::new();
-                    for i in 0..(size as usize / page_size) {
-                        for b in binary[(i * page_size)..((i + 1) * page_size)]
-                            .iter()
-                            .copied()
-                        {
-                            if b != 0 {
-                                valid_pages.push(i.try_into().unwrap());
-                                break;
+                                Err(e) => Err(e),
                             }
                         }
+                        Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
                     }
-
-                    // If there are no pages valid, all pages would have been removed, so we write them all
-                    if valid_pages.is_empty() {
-                        for i in 0..(size as usize / page_size) {
-                            valid_pages.push(i.try_into().unwrap());
-                        }
-                    }
-
-                    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
-                    let mut ending_pages: Vec<u8> = Vec::new();
-                    for &i in &valid_pages {
-                        let mut iter = valid_pages.iter();
-                        if !iter.any(|&x| x == (i + 1))
-                            && (i + 1) < (size as usize / page_size) as u8
-                        {
-                            ending_pages.push(i + 1);
-                        }
-                    }
-
-                    for i in ending_pages {
-                        valid_pages.push(i);
-                    }
-
-                    for i in valid_pages {
-                        println!("Writing page number {}", i);
-                        // Create the packet that we send to the bootloader
-                        // First four bytes are the address of the page
-                        let mut pkt = Vec::new();
-
-                        // Then the bytes that go into the page
-                        for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)]
-                            .iter()
-                            .copied()
-                        {
-                            pkt.push(b);
-                        }
-                        let mut loader = session.target().flash_loader();
-
-                        loader
-                            .add_data(
-                                (new_address as u32 + (i as usize * page_size) as u32).into(),
-                                &pkt,
-                            )
-                            .unwrap();
-
-                        let mut options = DownloadOptions::default();
-                        options.keep_unwritten_bytes = true;
-
-                        // Finally, the data can be programmed
-                        loader.commit(&mut session, options).unwrap();
-                    }
-                    Ok(())
                 }
                 Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
@@ -307,8 +341,6 @@ pub async fn install_app(
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let response = ping_bootloader_and_wait_for_response(&mut port).await?;
-                dbg!(response.clone());
             }
 
             let system_attributes =
@@ -372,16 +404,18 @@ pub async fn install_app(
                             200,
                             Response::ReadRange,
                         )
-                        .await
-                        .unwrap();
+                        .await?;
 
-                        let (_ver, _header_len, whole_len) =
-                            match parse_tbf_header_lengths(&message[0..8].try_into().unwrap()) {
-                                Ok((ver, header_len, whole_len)) if header_len != 0 => {
-                                    (ver, header_len, whole_len)
-                                }
-                                _ => break, // No more apps
-                            };
+                        let (_ver, _header_len, whole_len) = match parse_tbf_header_lengths(
+                            &message[0..8]
+                                .try_into()
+                                .expect("Buffer length must be at least 8 bytes long."),
+                        ) {
+                            Ok((ver, header_len, whole_len)) if header_len != 0 => {
+                                (ver, header_len, whole_len)
+                            }
+                            _ => break, // No more apps
+                        };
 
                         address += whole_len as u64;
                     }
@@ -392,125 +426,125 @@ pub async fn install_app(
 
                     match arch {
                         Ok(arch) => {
-                            let mut binary = tab_file.extract_binary(&arch.clone()).unwrap();
+                            let binary = tab_file.extract_binary(&arch.clone());
 
-                            let size = binary.len() as u64;
+                            match binary {
+                                Ok(mut binary) => {
+                                    let size = binary.len() as u64;
 
-                            let multiple = address / size;
+                                    let multiple = address / size;
 
-                            let (mut new_address, _gap_size) = if multiple * size != address {
-                                let new_address = ((address + size) / size) * size;
-                                let gap_size = new_address - address;
-                                (new_address, gap_size)
-                            } else {
-                                (address, 0)
-                            };
+                                    let (mut new_address, _gap_size) = if multiple * size != address
+                                    {
+                                        let new_address = ((address + size) / size) * size;
+                                        let gap_size = new_address - address;
+                                        (new_address, gap_size)
+                                    } else {
+                                        (address, 0)
+                                    };
 
-                            // Make sure the binary is a multiple of the page size by padding 0xFFs
-                            // TODO(Micu Ana): check if the page-size differs
-                            let page_size = 512;
-                            let needs_padding = binary.len() % page_size != 0;
+                                    // Make sure the binary is a multiple of the page size by padding 0xFFs
+                                    // TODO(Micu Ana): check if the page-size differs
+                                    let page_size = 512;
+                                    let needs_padding = binary.len() % page_size != 0;
 
-                            if needs_padding {
-                                let remaining = page_size - (binary.len() % page_size);
-                                dbg!(remaining);
-                                for _i in 0..remaining {
-                                    binary.push(0xFF);
-                                }
-                            }
-
-                            let binary_len = binary.len();
-
-                            // Get indices of pages that have valid data to write
-                            let mut valid_pages: Vec<u8> = Vec::new();
-                            for i in 0..(binary_len / page_size) {
-                                for b in binary[(i * page_size)..((i + 1) * page_size)]
-                                    .iter()
-                                    .copied()
-                                {
-                                    if b != 0 {
-                                        valid_pages.push(i.try_into().unwrap());
-                                        break;
+                                    if needs_padding {
+                                        let remaining = page_size - (binary.len() % page_size);
+                                        for _i in 0..remaining {
+                                            binary.push(0xFF);
+                                        }
                                     }
+
+                                    let binary_len = binary.len();
+
+                                    // Get indices of pages that have valid data to write
+                                    let mut valid_pages: Vec<u8> = Vec::new();
+                                    for i in 0..(binary_len / page_size) {
+                                        for b in binary[(i * page_size)..((i + 1) * page_size)]
+                                            .iter()
+                                            .copied()
+                                        {
+                                            if b != 0 {
+                                                valid_pages.push(i as u8);
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // If there are no pages valid, all pages would have been removed, so we write them all
+                                    if valid_pages.is_empty() {
+                                        for i in 0..(binary_len / page_size) {
+                                            valid_pages.push(i as u8);
+                                        }
+                                    }
+
+                                    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
+                                    let mut ending_pages: Vec<u8> = Vec::new();
+                                    for &i in &valid_pages {
+                                        let mut iter = valid_pages.iter();
+                                        if !iter.any(|&x| x == (i + 1))
+                                            && (i + 1) < (binary_len / page_size) as u8
+                                        {
+                                            ending_pages.push(i + 1);
+                                        }
+                                    }
+
+                                    for i in ending_pages {
+                                        valid_pages.push(i);
+                                    }
+
+                                    for i in valid_pages {
+                                        // Create the packet that we send to the bootloader
+                                        // First four bytes are the address of the page
+                                        let mut pkt = (new_address as u32
+                                            + (i as usize * page_size) as u32)
+                                            .to_le_bytes()
+                                            .to_vec();
+                                        // Then the bytes that go into the page
+                                        for b in binary[(i as usize * page_size)
+                                            ..((i + 1) as usize * page_size)]
+                                            .iter()
+                                            .copied()
+                                        {
+                                            pkt.push(b);
+                                        }
+
+                                        // Write to bootloader
+                                        let (_, _) = issue_command(
+                                            &mut port,
+                                            Command::WritePage,
+                                            pkt,
+                                            true,
+                                            0,
+                                            Response::OK,
+                                        )
+                                        .await?;
+                                    }
+
+                                    new_address += binary.len() as u64;
+
+                                    let pkt = (new_address as u32).to_le_bytes().to_vec();
+
+                                    let _ = issue_command(
+                                        &mut port,
+                                        Command::ErasePage,
+                                        pkt,
+                                        true,
+                                        0,
+                                        Response::OK,
+                                    )
+                                    .await?;
+                                }
+                                Err(e) => {
+                                    return Err(e);
                                 }
                             }
-
-                            // If there are no pages valid, all pages would have been removed, so we write them all
-                            if valid_pages.is_empty() {
-                                for i in 0..(binary_len / page_size) {
-                                    valid_pages.push(i.try_into().unwrap());
-                                }
-                            }
-
-                            // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
-                            let mut ending_pages: Vec<u8> = Vec::new();
-                            for &i in &valid_pages {
-                                let mut iter = valid_pages.iter();
-                                if !iter.any(|&x| x == (i + 1))
-                                    && (i + 1) < (binary_len / page_size) as u8
-                                {
-                                    ending_pages.push(i + 1);
-                                }
-                            }
-
-                            for i in ending_pages {
-                                valid_pages.push(i);
-                            }
-
-                            for i in valid_pages {
-                                println!("Writing page number {}", i);
-                                // Create the packet that we send to the bootloader
-                                // First four bytes are the address of the page
-                                let mut pkt = (new_address as u32
-                                    + (i as usize * page_size) as u32)
-                                    .to_le_bytes()
-                                    .to_vec();
-                                // Then the bytes that go into the page
-                                for b in binary
-                                    [(i as usize * page_size)..((i + 1) as usize * page_size)]
-                                    .iter()
-                                    .copied()
-                                {
-                                    pkt.push(b);
-                                }
-
-                                // Write to bootloader
-                                let (_, _) = issue_command(
-                                    &mut port,
-                                    Command::WritePage,
-                                    pkt,
-                                    true,
-                                    0,
-                                    Response::OK,
-                                )
-                                .await
-                                .unwrap();
-                            }
-
-                            new_address += binary.len() as u64;
-
-                            let pkt = (new_address as u32).to_le_bytes().to_vec();
-
-                            let _ = issue_command(
-                                &mut port,
-                                Command::ErasePage,
-                                pkt,
-                                true,
-                                0,
-                                Response::OK,
-                            )
-                            .await
-                            .unwrap();
                             Ok(())
                         }
-                        Err(e) => {
-                            return Err(TockloaderError::MisconfiguredBoard(e));
-                        }
+                        Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
                     }
                 }
-                Err(e) => {
-                    return Err(TockloaderError::MisconfiguredBoard(e));
-                }
+                Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
         }
     }
