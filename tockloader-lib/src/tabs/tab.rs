@@ -22,65 +22,47 @@ impl Tab {
         let mut metadata = None;
         let mut tbf_files = Vec::new();
 
-        match File::open(path) {
-            Ok(file) => {
-                let mut archive = Archive::new(file);
-                match archive.entries() {
-                    Ok(entries) => {
-                        for file in entries {
+        let file = File::open(path).map_err(|e| TockloaderError::UnusableTab(e))?;
+        let mut archive = Archive::new(file);
+        for file in archive
+            .entries()
+            .map_err(|e| TockloaderError::UnusableTab(e))?
+        {
+            match file {
+                Ok(mut file) => {
+                    let path = file.path().map_err(|e| TockloaderError::UnusableTab(e))?;
+                    match path.file_name() {
+                        Some(file_name) => {
+                            let file_name = file_name.to_str().unwrap_or("").to_owned();
+                            if file_name == "metadata.toml" {
+                                let mut buf = String::new();
+                                file.read_to_string(&mut buf)
+                                    .map_err(|e| TockloaderError::UnusableTab(e))?;
+                                metadata = Some(Metadata::new(buf)?);
+                            } else if file_name.ends_with(".tbf") {
+                                let mut data = Vec::new();
 
-                            match file {
-                                Ok(mut file) => {
-
-                                    match file.path() {
-                                        Ok(path) => {
-
-                                            match path.file_name() {
-                                                Some(file_name) => {
-                                                    let file_name = file_name.to_str().unwrap_or("").to_owned();
-                                                    if file_name == "metadata.toml" {
-                                                        let mut buf = String::new();
-                                                        match file.read_to_string(&mut buf) {
-                                                            Ok(_) => metadata = Some(Metadata::new(buf).unwrap()),
-                                                            Err(e) => return Err(TockloaderError::UnusableTab(e)),
-                                                        };
-                                                    } else if file_name.ends_with(".tbf") {
-                                                        let mut data = Vec::new();
-
-                                                        match file.read_to_end(&mut data) {
-                                                            Ok(_) => {
-                                                                tbf_files.push(TbfFile {
-                                                                    filename: file_name.to_string(),
-                                                                    data,
-                                                                });
-                                                            },
-                                                            Err(e) => return Err(TockloaderError::UnusableTab(e)),
-                                                        }
-                                                    }
-                                                },
-                                                None => continue,
-                                            }
-                                        },
-                                        Err(e) => return Err(TockloaderError::UnusableTab(e)),
-                                    }
-                                },
-                                Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                                file.read_to_end(&mut data)
+                                    .map_err(|e| TockloaderError::UnusableTab(e))?;
+                                tbf_files.push(TbfFile {
+                                    filename: file_name.to_string(),
+                                    data,
+                                });
                             }
                         }
-        
-                        if metadata.is_none() {
-                            panic!("No metadata.toml found in tab");
-                        }
-        
-                        Ok(Tab {
-                            metadata: metadata.unwrap(),
-                            tbf_files,
-                        })
-                    },
-                    Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                        None => continue,
+                    }
                 }
+                Err(e) => return Err(TockloaderError::UnusableTab(e)),
             }
-            Err(e) => return Err(TockloaderError::UnusableTab(e)),
+        }
+
+        match metadata {
+            Some(metadata) => Ok(Tab {
+                metadata,
+                tbf_files,
+            }),
+            None => Err(TockloaderError::NoMetadata),
         }
     }
 
