@@ -40,4 +40,7 @@ pub enum TockloaderError {
 
     #[error("Expected board attribute to be present")]
     MisconfiguredBoard(String),
+
+    #[error("Failed to use tab from provided path. Inner: {0}")]
+    UnusableTab(io::Error),
 }

@@ -22,36 +22,60 @@ impl Tab {
         let mut metadata = None;
         let mut tbf_files = Vec::new();
 
-        let mut archive = Archive::new(File::open(path).unwrap());
-        for file in archive.entries().unwrap() {
-            let mut file = file.unwrap();
-            let path = file.path().unwrap();
-            let file_name = path.file_name().unwrap().to_str().unwrap().to_owned();
+        match File::open(path) {
+            Ok(file) => {
+                let mut archive = Archive::new(file);
+                match archive.entries() {
+                    Ok(entries) => {
+                        for file in entries {
 
-            if file_name == "metadata.toml" {
-                let mut buf = String::new();
-                file.read_to_string(&mut buf).unwrap();
+                            match file {
+                                Ok(mut file) => {
 
-                metadata = Some(Metadata::new(buf).unwrap());
-            } else if file_name.ends_with(".tbf") {
-                let mut data = Vec::new();
-                file.read_to_end(&mut data).unwrap();
+                                    match file.path() {
+                                        Ok(path) => {
 
-                tbf_files.push(TbfFile {
-                    filename: file_name.to_string(),
-                    data,
-                });
+                                            match path.file_name() {
+                                                Some(file_name) => {
+                                                    let file_name = file_name.to_str().expect("File name must be a valid Unicode.").to_owned();
+                                                    if file_name == "metadata.toml" {
+                                                        let mut buf = String::new();
+                                                        file.read_to_string(&mut buf).expect("metadata.toml must contain a valid Unicode.");
+                                                        metadata = Some(Metadata::new(buf).unwrap());
+                                                    } else if file_name.ends_with(".tbf") {
+                                                        let mut data = Vec::new();
+                                                        file.read_to_end(&mut data).unwrap();
+                                
+                                                        tbf_files.push(TbfFile {
+                                                            filename: file_name.to_string(),
+                                                            data,
+                                                        });
+                                                    }
+                                                },
+                                                None => continue,
+                                            }
+                                        },
+                                        Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                                    }
+                                },
+                                Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                            }
+                        }
+        
+                        if metadata.is_none() {
+                            panic!("No metadata.toml found in tab");
+                        }
+        
+                        Ok(Tab {
+                            metadata: metadata.unwrap(),
+                            tbf_files,
+                        })
+                    },
+                    Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                }
             }
+            Err(e) => return Err(TockloaderError::UnusableTab(e)),
         }
-
-        if metadata.is_none() {
-            panic!("No metadata.toml found in tab");
-        }
-
-        Ok(Tab {
-            metadata: metadata.unwrap(),
-            tbf_files,
-        })
     }
 
     pub fn is_compatible_with_kernel_verison(&self, _kernel_version: u32) -> bool {
