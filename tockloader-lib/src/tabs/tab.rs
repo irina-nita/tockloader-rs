@@ -37,19 +37,25 @@ impl Tab {
 
                                             match path.file_name() {
                                                 Some(file_name) => {
-                                                    let file_name = file_name.to_str().expect("File name must be a valid Unicode.").to_owned();
+                                                    let file_name = file_name.to_str().unwrap_or("").to_owned();
                                                     if file_name == "metadata.toml" {
                                                         let mut buf = String::new();
-                                                        file.read_to_string(&mut buf).expect("metadata.toml must contain a valid Unicode.");
-                                                        metadata = Some(Metadata::new(buf).unwrap());
+                                                        match file.read_to_string(&mut buf) {
+                                                            Ok(_) => metadata = Some(Metadata::new(buf).unwrap()),
+                                                            Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                                                        };
                                                     } else if file_name.ends_with(".tbf") {
                                                         let mut data = Vec::new();
-                                                        file.read_to_end(&mut data).unwrap();
-                                
-                                                        tbf_files.push(TbfFile {
-                                                            filename: file_name.to_string(),
-                                                            data,
-                                                        });
+
+                                                        match file.read_to_end(&mut data) {
+                                                            Ok(_) => {
+                                                                tbf_files.push(TbfFile {
+                                                                    filename: file_name.to_string(),
+                                                                    data,
+                                                                });
+                                                            },
+                                                            Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                                                        }
                                                     }
                                                 },
                                                 None => continue,
