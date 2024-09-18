@@ -139,7 +139,7 @@ pub async fn ping_bootloader_and_wait_for_response(
             return Ok(Response::from(ret[1]));
         }
     }
-    Err(TockloaderError::BootloaderError(ret[1]))
+    Ok(Response::from(ret[1]))
 }
 
 #[allow(dead_code)]
