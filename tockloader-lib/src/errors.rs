@@ -43,4 +43,7 @@ pub enum TockloaderError {
 
     #[error("Failed to use tab from provided path. Inner: {0}")]
     UnusableTab(io::Error),
+
+    #[error("Failed to parse metadata. Inner: {0}")]
+    NoMetadata(toml::de::Error),
 }
