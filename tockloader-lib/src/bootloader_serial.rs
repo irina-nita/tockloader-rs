@@ -125,8 +125,7 @@ pub async fn ping_bootloader_and_wait_for_response(
 
     let mut ret = BytesMut::with_capacity(200);
 
-    for i in 0..30 {
-        println!("Iteration number {}", i);
+    for _ in 0..30 {
         let mut bytes_written = 0;
         while bytes_written != ping_pkt.len() {
             bytes_written += port.write_buf(&mut &ping_pkt[bytes_written..]).await?;
@@ -189,8 +188,6 @@ pub async fn issue_command(
     while read_bytes < 2 {
         read_bytes += port.read_buf(&mut ret).await?;
     }
-    println!("Read {} bytes", read_bytes);
-    println!("{:?}", ret);
 
     if ret[0] != ESCAPE_CHAR {
         return Err(TockloaderError::BootloaderError(ret[0]));
