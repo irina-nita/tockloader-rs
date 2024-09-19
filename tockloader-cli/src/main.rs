@@ -16,11 +16,8 @@ use tockloader_lib::{
 };
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    run().await
-}
 
-async fn run() -> Result<()> {
+async fn main() -> Result<()> {
     let matches = make_cli().get_matches();
 
     if matches.get_flag("debug") {

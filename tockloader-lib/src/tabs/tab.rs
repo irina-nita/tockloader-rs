@@ -21,39 +21,29 @@ impl Tab {
     pub fn open(path: String) -> Result<Self, TockloaderError> {
         let mut metadata = None;
         let mut tbf_files = Vec::new();
-
         let file = File::open(path).map_err(TockloaderError::UnusableTab)?;
         let mut archive = Archive::new(file);
-        for file in archive
-            .entries()
-            .map_err(TockloaderError::UnusableTab)?
-        {
-            match file {
-                Ok(mut file) => {
-                    let path = file.path().map_err(TockloaderError::UnusableTab)?;
-                    match path.file_name() {
-                        Some(file_name) => {
-                            let file_name = file_name.to_str().unwrap_or("").to_owned();
-                            if file_name == "metadata.toml" {
-                                let mut buf = String::new();
-                                file.read_to_string(&mut buf)
-                                    .map_err(TockloaderError::UnusableTab)?;
-                                metadata = Some(Metadata::new(buf)?);
-                            } else if file_name.ends_with(".tbf") {
-                                let mut data = Vec::new();
+        for file in archive.entries().map_err(TockloaderError::UnusableTab)? {
+            let mut file = file.map_err(TockloaderError::UnusableTab)?;
+            let path = file.path().map_err(TockloaderError::UnusableTab)?;
+            let file_name = match path.file_name().and_then(|name| name.to_str()) {
+                Some(name) => name.to_owned(),
+                None => continue,
+            };
+            if file_name == "metadata.toml" {
+                let mut buf = String::new();
+                file.read_to_string(&mut buf)
+                    .map_err(TockloaderError::UnusableTab)?;
+                metadata = Some(Metadata::new(buf)?);
+            } else if file_name.ends_with(".tbf") {
+                let mut data = Vec::new();
 
-                                file.read_to_end(&mut data)
-                                    .map_err(TockloaderError::UnusableTab)?;
-                                tbf_files.push(TbfFile {
-                                    filename: file_name.to_string(),
-                                    data,
-                                });
-                            }
-                        }
-                        None => continue,
-                    }
-                }
-                Err(e) => return Err(TockloaderError::UnusableTab(e)),
+                file.read_to_end(&mut data)
+                    .map_err(TockloaderError::UnusableTab)?;
+                tbf_files.push(TbfFile {
+                    filename: file_name.to_string(),
+                    data,
+                });
             }
         }
 
