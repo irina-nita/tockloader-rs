@@ -25,7 +25,7 @@ pub(super) struct Metadata {
 
 impl Metadata {
     pub fn new(metadata: String) -> Result<Self, TockloaderError> {
-        toml::from_str(&metadata).map_err(|e| TockloaderError::InvalidMetadata(e))
+        toml::from_str(&metadata).map_err(TockloaderError::InvalidMetadata)
     }
 }
 

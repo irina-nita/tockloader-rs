@@ -56,7 +56,7 @@ impl AppAttributes {
 
             board_core
                 .read(appaddr, &mut appdata)
-                .map_err(|e| TockloaderError::ProbeRsReadError(e))?;
+                .map_err(TockloaderError::ProbeRsReadError)?;
 
             let tbf_version: u16;
             let header_size: u16;
@@ -79,9 +79,9 @@ impl AppAttributes {
 
             board_core
                 .read(appaddr, &mut header_data)
-                .map_err(|e| TockloaderError::ProbeRsReadError(e))?;
+                .map_err(TockloaderError::ProbeRsReadError)?;
             let header = parse_tbf_header(&header_data, tbf_version)
-                .map_err(|e| TockloaderError::ParsingError(e))?;
+                .map_err(TockloaderError::ParsingError)?;
 
             let binary_end_offset = header.get_binary_end();
 
@@ -96,10 +96,10 @@ impl AppAttributes {
 
                 board_core
                     .read(appaddr + footer_offset as u64, &mut appfooter)
-                    .map_err(|e| TockloaderError::ProbeRsReadError(e))?;
+                    .map_err(TockloaderError::ProbeRsReadError)?;
 
                 let footer_info =
-                    parse_tbf_footer(&appfooter).map_err(|e| TockloaderError::ParsingError(e))?;
+                    parse_tbf_footer(&appfooter).map_err(TockloaderError::ParsingError)?;
 
                 footers.insert(footer_number, TbfFooter::new(footer_info.0, footer_info.1));
 
@@ -172,7 +172,7 @@ impl AppAttributes {
             .await?;
 
             let header = parse_tbf_header(&header_data, tbf_version)
-                .map_err(|e| TockloaderError::ParsingError(e))?;
+                .map_err(TockloaderError::ParsingError)?;
             let binary_end_offset = header.get_binary_end();
 
             let mut footers: Vec<TbfFooter> = vec![];
@@ -200,7 +200,7 @@ impl AppAttributes {
                 .await?;
 
                 let footer_info =
-                    parse_tbf_footer(&appfooter).map_err(|e| TockloaderError::ParsingError(e))?;
+                    parse_tbf_footer(&appfooter).map_err(TockloaderError::ParsingError)?;
 
                 footers.insert(footer_number, TbfFooter::new(footer_info.0, footer_info.1));
 

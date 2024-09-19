@@ -5,9 +5,9 @@
 mod cli;
 mod display;
 
+use anyhow::{Context, Result};
 use cli::make_cli;
 use display::{print_info, print_list};
-use anyhow::{Context, Result};
 use inquire::Select;
 use tockloader_lib::{
     connection::{Connection, ConnectionInfo},
@@ -17,8 +17,7 @@ use tockloader_lib::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let result = run().await;
-    result
+    run().await
 }
 
 async fn run() -> Result<()> {
@@ -30,7 +29,9 @@ async fn run() -> Result<()> {
 
     match matches.subcommand() {
         Some(("listen", _sub_matches)) => {
-            tock_process_console::run().await.context("Failed to run console.")?;
+            tock_process_console::run()
+                .await
+                .context("Failed to run console.")?;
         }
         Some(("list", sub_matches)) => {
             if sub_matches.get_one::<bool>("serial").is_some() {
@@ -49,8 +50,14 @@ async fn run() -> Result<()> {
                     .context("No debug probe is connected.")?;
                 let conn = Connection::open(
                     ConnectionInfo::ProbeInfo(ans),
-                    Some(sub_matches.get_one::<String>("chip").context("No chip has been provided.")?.to_string()),
-                ).context("Failed to open probe connection.")?;
+                    Some(
+                        sub_matches
+                            .get_one::<String>("chip")
+                            .context("No chip has been provided.")?
+                            .to_string(),
+                    ),
+                )
+                .context("Failed to open probe connection.")?;
                 let mut apps_details = list(conn, sub_matches.get_one::<usize>("core"))
                     .await
                     .context("Failed to list apps.")?;
@@ -68,7 +75,9 @@ async fn run() -> Result<()> {
                 // Open connection
                 let conn = Connection::open(ConnectionInfo::from(ans), None)
                     .context("Failed to open serial connection.")?;
-                let mut attributes = info(conn, None).await.context("Failed to get data from the board.")?;
+                let mut attributes = info(conn, None)
+                    .await
+                    .context("Failed to get data from the board.")?;
                 print_info(&mut attributes.apps, &mut attributes.system).await;
             } else {
                 // TODO(Micu Ana): Add error handling
@@ -78,8 +87,14 @@ async fn run() -> Result<()> {
                 // Open connection
                 let conn = Connection::open(
                     ConnectionInfo::ProbeInfo(ans),
-                    Some(sub_matches.get_one::<String>("chip").context("No chip has been provided.")?.to_string()),
-                ).context("Failed to open probe connection.")?;
+                    Some(
+                        sub_matches
+                            .get_one::<String>("chip")
+                            .context("No chip has been provided.")?
+                            .to_string(),
+                    ),
+                )
+                .context("Failed to open probe connection.")?;
 
                 let mut attributes = info(conn, sub_matches.get_one::<usize>("core"))
                     .await
@@ -89,8 +104,8 @@ async fn run() -> Result<()> {
             }
         }
         Some(("install", sub_matches)) => {
-            let tab_file =
-                Tab::open(sub_matches.get_one::<String>("tab").unwrap().to_string()).context("Failed to use provided tab file.")?;
+            let tab_file = Tab::open(sub_matches.get_one::<String>("tab").unwrap().to_string())
+                .context("Failed to use provided tab file.")?;
             // If "--serial" flag is used, we choose the serial connection
             if sub_matches.get_one::<bool>("serial").is_some() {
                 let serial_ports = list_serial_ports().context("Failed to list serial ports.")?;
@@ -103,23 +118,27 @@ async fn run() -> Result<()> {
                 let conn = Connection::open(ConnectionInfo::from(ans), None)
                     .context("Failed to open serial connection.")?;
                 // Install app
-                install_app(conn, None, tab_file).await.context("Failed to install app.")?;
+                install_app(conn, None, tab_file)
+                    .await
+                    .context("Failed to install app.")?;
             } else {
                 let ans = Select::new("Which debug probe do you want to use?", list_debug_probes())
                     .prompt()
                     .context("No debug probe is connected.")?;
                 let conn = Connection::open(
                     ConnectionInfo::ProbeInfo(ans),
-                    Some(sub_matches.get_one::<String>("chip").context("No chip has been provided.")?.to_string()),
-                ).context("Failed to open probe connection.")?;
-                // Install app
-                install_app(
-                    conn,
-                    sub_matches.get_one::<usize>("core"),
-                    tab_file,
+                    Some(
+                        sub_matches
+                            .get_one::<String>("chip")
+                            .context("No chip has been provided.")?
+                            .to_string(),
+                    ),
                 )
-                .await
-                .context("Failed to install app.")?;
+                .context("Failed to open probe connection.")?;
+                // Install app
+                install_app(conn, sub_matches.get_one::<usize>("core"), tab_file)
+                    .await
+                    .context("Failed to install app.")?;
             }
         }
         _ => {
