@@ -14,7 +14,7 @@ use attributes::app_attributes::AppAttributes;
 use attributes::general_attributes::GeneralAttributes;
 use attributes::system_attributes::SystemAttributes;
 
-use bootloader_serial::{BootloaderCommand, Command, ErasePageCommand, ReadRangeCommand, Response, WritePageCommand};
+use bootloader_serial::{BootloaderCommand, ErasePageCommand, PingCommand, ReadRangeCommand, Response, WritePageCommand};
 use connection::Connection;
 use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
@@ -54,11 +54,27 @@ pub async fn list(
             }
         }
         Connection::Serial(mut port) => {
-            let response = ping_bootloader_and_wait_for_response(&mut port).await?;
+
+            let read_command = PingCommand {
+                port: &mut port,
+                sync: true,
+                response_len: 0,
+                expected_response: Response::Pong,
+            };
+
+            let response = read_command.issue_command().await?;
+
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let _ = ping_bootloader_and_wait_for_response(&mut port).await?;
+                let read_command = PingCommand {
+                    port: &mut port,
+                    sync: true,
+                    response_len: 0,
+                    expected_response: Response::Pong,
+                };
+    
+                let _ = read_command.issue_command().await?;
             }
 
             let system_attributes =
@@ -98,11 +114,26 @@ pub async fn info(
             }
         }
         Connection::Serial(mut port) => {
-            let response = ping_bootloader_and_wait_for_response(&mut port).await?;
+            let read_command = PingCommand {
+                port: &mut port,
+                sync: true,
+                response_len: 0,
+                expected_response: Response::Pong,
+            };
+
+            let response = read_command.issue_command().await?;
+
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let _ = ping_bootloader_and_wait_for_response(&mut port).await?;
+                let read_command = PingCommand {
+                    port: &mut port,
+                    sync: true,
+                    response_len: 0,
+                    expected_response: Response::Pong,
+                };
+    
+                let _ = read_command.issue_command().await?;
             }
 
             let system_attributes =
@@ -298,11 +329,26 @@ pub async fn install_app(
             Ok(())
         }
         Connection::Serial(mut port) => {
-            let response = ping_bootloader_and_wait_for_response(&mut port).await?;
+            let read_command = PingCommand {
+                port: &mut port,
+                sync: true,
+                response_len: 0,
+                expected_response: Response::Pong,
+            };
+
+            let response = read_command.issue_command().await?;
+
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let _ = ping_bootloader_and_wait_for_response(&mut port).await?;
+                let read_command = PingCommand {
+                    port: &mut port,
+                    sync: true,
+                    response_len: 0,
+                    expected_response: Response::Pong,
+                };
+    
+                let _ = read_command.issue_command().await?;
             }
 
             let system_attributes =
@@ -443,14 +489,14 @@ pub async fn install_app(
                             }
 
                             for i in valid_pages {
-                                let mut write_command = WritePageCommand {
+                                let write_command = WritePageCommand {
                                     address: (new_address as u32 + (i as usize * page_size) as u32)
                                         .to_le_bytes()
                                         .to_vec(),
                                     data: binary
                                         [(i as usize * page_size)..((i + 1) as usize * page_size)]
                                         .to_vec(),
-                                    port,
+                                    port: &mut port,
                                     sync: true,
                                     response_len: 0,
                                     expected_response: Response::OK,
@@ -463,7 +509,7 @@ pub async fn install_app(
 
                             let erase_command = ErasePageCommand {
                                 address: (new_address as u32).to_le_bytes().to_vec(),
-                                port,
+                                port: &mut port,
                                 sync: true,
                                 response_len: 0,
                                 expected_response: Response::OK,
