@@ -14,7 +14,7 @@ use attributes::app_attributes::AppAttributes;
 use attributes::general_attributes::GeneralAttributes;
 use attributes::system_attributes::SystemAttributes;
 
-use bootloader_serial::{issue_command, ping_bootloader_and_wait_for_response, Command, Response};
+use bootloader_serial::{BootloaderCommand, Command, ErasePageCommand, ReadRangeCommand, Response, WritePageCommand};
 use connection::Connection;
 use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
@@ -317,8 +317,6 @@ pub async fn install_app(
 
             match board {
                 Ok(board) => {
-                    // Verify if the specified app is compatible with board
-                    // TODO(Micu Ana): Replace the print with log messages
                     if tab_file.is_compatible_with_board(&board) {
                         println!("Specified tab is compatible with board.");
                     } else {
@@ -332,8 +330,6 @@ pub async fn install_app(
 
             match kernel_version {
                 Ok(kernel_version) => {
-                    // Verify if the specified app is compatible with kernel version
-                    // TODO(Micu Ana): Replace the prints with log messages
                     if tab_file.is_compatible_with_kernel_verison(kernel_version as u32) {
                         println!("Specified tab is compatible with your kernel version.");
                     } else {
@@ -352,22 +348,16 @@ pub async fn install_app(
                         "No start address found.".to_owned(),
                     ))?;
             loop {
-                // Read a block of 200 8-bit words
-                let mut pkt = (address as u32).to_le_bytes().to_vec();
-                let length = (200_u16).to_le_bytes().to_vec();
-                for i in length {
-                    pkt.push(i);
-                }
-
-                let (_, message) = issue_command(
-                    &mut port,
-                    Command::ReadRange,
-                    pkt,
-                    true,
-                    200,
-                    Response::ReadRange,
-                )
-                .await?;
+                // Create the command using the new Command trait and issue it
+                let read_command = ReadRangeCommand {
+                    address: (address as u32).to_le_bytes().to_vec(),
+                    port: &mut port,
+                    sync: true,
+                    response_len: 200,
+                    expected_response: Response::ReadRange,
+                };
+    
+                let (_, message) = read_command.issue_command().await?;
 
                 let (_ver, _header_len, whole_len) = match parse_tbf_header_lengths(
                     &message[0..8]
@@ -406,7 +396,6 @@ pub async fn install_app(
                             };
 
                             // Make sure the binary is a multiple of the page size by padding 0xFFs
-                            // TODO(Micu Ana): check if the page-size differs
                             let page_size = 512;
                             let needs_padding = binary.len() % page_size != 0;
 
@@ -433,14 +422,12 @@ pub async fn install_app(
                                 }
                             }
 
-                            // If there are no pages valid, all pages would have been removed, so we write them all
                             if valid_pages.is_empty() {
                                 for i in 0..(binary_len / page_size) {
                                     valid_pages.push(i as u8);
                                 }
                             }
 
-                            // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
                             let mut ending_pages: Vec<u8> = Vec::new();
                             for &i in &valid_pages {
                                 let mut iter = valid_pages.iter();
@@ -456,46 +443,33 @@ pub async fn install_app(
                             }
 
                             for i in valid_pages {
-                                // Create the packet that we send to the bootloader
-                                // First four bytes are the address of the page
-                                let mut pkt = (new_address as u32
-                                    + (i as usize * page_size) as u32)
-                                    .to_le_bytes()
-                                    .to_vec();
-                                // Then the bytes that go into the page
-                                for b in binary
-                                    [(i as usize * page_size)..((i + 1) as usize * page_size)]
-                                    .iter()
-                                    .copied()
-                                {
-                                    pkt.push(b);
-                                }
+                                let mut write_command = WritePageCommand {
+                                    address: (new_address as u32 + (i as usize * page_size) as u32)
+                                        .to_le_bytes()
+                                        .to_vec(),
+                                    data: binary
+                                        [(i as usize * page_size)..((i + 1) as usize * page_size)]
+                                        .to_vec(),
+                                    port,
+                                    sync: true,
+                                    response_len: 0,
+                                    expected_response: Response::OK,
+                                };
 
-                                // Write to bootloader
-                                let (_, _) = issue_command(
-                                    &mut port,
-                                    Command::WritePage,
-                                    pkt,
-                                    true,
-                                    0,
-                                    Response::OK,
-                                )
-                                .await?;
+                                write_command.issue_command().await?;
                             }
 
                             new_address += binary.len() as u64;
 
-                            let pkt = (new_address as u32).to_le_bytes().to_vec();
+                            let erase_command = ErasePageCommand {
+                                address: (new_address as u32).to_le_bytes().to_vec(),
+                                port,
+                                sync: true,
+                                response_len: 0,
+                                expected_response: Response::OK,
+                            };
 
-                            let _ = issue_command(
-                                &mut port,
-                                Command::ErasePage,
-                                pkt,
-                                true,
-                                0,
-                                Response::OK,
-                            )
-                            .await?;
+                            erase_command.issue_command().await?;
                         }
                         Err(e) => {
                             return Err(e);

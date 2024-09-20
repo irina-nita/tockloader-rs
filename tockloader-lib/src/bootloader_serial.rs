@@ -2,22 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 // Copyright OXIDOS AUTOMOTIVE 2024.
 
-// The "X" commands are for external flash
-
 use crate::errors;
 use bytes::BytesMut;
 use errors::TockloaderError;
-use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_serial::{SerialPort, SerialStream};
+use tokio_serial::SerialStream;
 
-// Tell the bootloader to reset its buffer to handle a new command
 pub const SYNC_MESSAGE: [u8; 3] = [0x00, 0xFC, 0x05];
-
-// "This was chosen as it is infrequent in .bin files" - immesys
 pub const ESCAPE_CHAR: u8 = 0xFC;
 
-#[allow(dead_code)]
 pub enum Command {
     // Commands from this tool to the bootloader
     Ping = 0x01,
@@ -95,125 +88,192 @@ impl From<u8> for Response {
     }
 }
 
-#[allow(dead_code)]
-pub async fn toggle_bootloader_entry_dtr_rts(
-    port: &mut SerialStream,
-) -> Result<(), TockloaderError> {
-    port.write_data_terminal_ready(true)
-        .map_err(TockloaderError::SerialInitializationError)?;
-    port.write_request_to_send(true)
-        .map_err(TockloaderError::SerialInitializationError)?;
-
-    tokio::time::sleep(Duration::from_millis(100)).await;
-
-    port.write_data_terminal_ready(false)
-        .map_err(TockloaderError::SerialInitializationError)?;
-
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    port.write_request_to_send(false)
-        .map_err(TockloaderError::SerialInitializationError)?;
-
-    Ok(())
+pub trait BootloaderCommand<R> {
+    async fn issue_command(self) -> Result<R, TockloaderError>;
 }
 
-#[allow(dead_code)]
-pub async fn ping_bootloader_and_wait_for_response(
-    port: &mut SerialStream,
-) -> Result<Response, TockloaderError> {
-    let ping_pkt = [ESCAPE_CHAR, Command::Ping as u8];
-
-    let mut ret = BytesMut::with_capacity(200);
-
-    for _ in 0..30 {
-        let mut bytes_written = 0;
-        while bytes_written != ping_pkt.len() {
-            bytes_written += port.write_buf(&mut &ping_pkt[bytes_written..]).await?;
-        }
-        let mut read_bytes = 0;
-        while read_bytes < 2 {
-            read_bytes += port.read_buf(&mut ret).await?;
-        }
-        if ret[1] == Response::Pong as u8 {
-            return Ok(Response::from(ret[1]));
-        }
-    }
-    Ok(Response::from(ret[1]))
-}
-
-#[allow(dead_code)]
-pub async fn issue_command(
-    port: &mut SerialStream,
-    command: Command,
-    mut message: Vec<u8>,
+pub struct PingCommand {
+    port: SerialStream,
     sync: bool,
     response_len: usize,
-    response_code: Response,
-) -> Result<(Response, Vec<u8>), TockloaderError> {
-    // Setup a command to send to the bootloader and handle the response
-    // Generate the message to send to the bootloader
-    let mut i = 0;
-    while i < message.len() {
-        if message[i] == ESCAPE_CHAR {
-            // Escaped by replacing all 0xFC with two consecutive 0xFC - tock bootloader readme
-            message.insert(i + 1, ESCAPE_CHAR);
-            // Skip the inserted character
-            i += 2;
-        } else {
-            i += 1;
-        }
-    }
-    message.push(ESCAPE_CHAR);
-    message.push(command as u8);
+    expected_response: Response,
+}
 
-    // If there should be a sync/reset message, prepend the outgoing message with it
-    if sync {
-        message.insert(0, SYNC_MESSAGE[0]);
-        message.insert(1, SYNC_MESSAGE[1]);
-        message.insert(2, SYNC_MESSAGE[2]);
-    }
+pub struct WritePageCommand {
+    pub(crate) port: SerialStream,
+    pub(crate) data: Vec<u8>,
+    pub(crate) sync: bool,
+    pub(crate) response_len: usize,
+    pub(crate) expected_response: Response,
+    pub(crate) address: Vec<u8>,
+}
 
-    // Write the command message
-    let mut bytes_written = 0;
-    while bytes_written != message.len() {
-        bytes_written += port.write_buf(&mut &message[bytes_written..]).await?;
-    }
+pub struct ReadRangeCommand<'a> {
+    pub(crate) port: &'a mut SerialStream,
+    pub(crate) sync: bool,
+    pub(crate) response_len: usize,
+    pub(crate) expected_response: Response,
+    pub(crate) address: Vec<u8>,
+}
 
-    // Response has a two byte header, then response_len bytes
-    let bytes_to_read = 2 + response_len;
-    let mut ret = BytesMut::with_capacity(2);
+pub struct ErasePageCommand {
+    pub(crate) port: SerialStream,
+    pub(crate) sync: bool,
+    pub(crate) response_len: usize,
+    pub(crate) expected_response: Response,
+    pub(crate) address: Vec<u8>,
+}
 
-    // We are waiting for 2 bytes to be read
-    let mut read_bytes = 0;
-    while read_bytes < 2 {
-        read_bytes += port.read_buf(&mut ret).await?;
-    }
+impl BootloaderCommand<Response> for PingCommand {
+    async fn issue_command(mut self) -> Result<Response, TockloaderError> {
+        let mut message = vec![ESCAPE_CHAR, Command::Ping as u8];
 
-    if ret[0] != ESCAPE_CHAR {
-        return Err(TockloaderError::BootloaderError(ret[0]));
-    }
-
-    if ret[1] != response_code.clone() as u8 {
-        return Err(TockloaderError::BootloaderError(ret[1]));
-    }
-
-    let mut new_data: Vec<u8> = Vec::new();
-    let mut value = 2;
-
-    if response_len != 0 {
-        while bytes_to_read > value {
-            value += port.read_buf(&mut new_data).await?;
+        if self.sync {
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
         }
 
-        // De-escape and add array of read in the bytes
-        for i in 0..(new_data.len() - 1) {
-            if new_data[i] == ESCAPE_CHAR && new_data[i + 1] == ESCAPE_CHAR {
-                new_data.remove(i + 1);
+        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut bytes_written = 0;
+
+        while bytes_written != message.len() {
+            bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
+        }
+
+        let mut read_bytes = 0;
+        while read_bytes < 2 {
+            read_bytes += self.port.read_buf(&mut ret).await?;
+        }
+
+        if ret[1] == self.expected_response as u8 {
+            return Ok(Response::from(ret[1]));
+        }
+
+        Err(TockloaderError::BootloaderError(ret[1]))
+    }
+}
+
+impl BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand {
+    async fn issue_command(mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
+        let mut message = self.data.clone();
+
+        for i in 0..4 {
+            message.insert(i, self.address[i]);
+        }
+
+        for i in (0..message.len()).rev() {
+            if message[i] == ESCAPE_CHAR {
+                message.insert(i + 1, ESCAPE_CHAR);
             }
         }
 
-        ret.extend_from_slice(&new_data);
-    }
+        message.push(ESCAPE_CHAR);
+        message.push(Command::WritePage as u8);
 
-    Ok((Response::from(ret[1]), ret[2..].to_vec()))
+        if self.sync {
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
+        }
+
+        let mut bytes_written = 0;
+        while bytes_written != message.len() {
+            bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
+        }
+
+        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut read_bytes = 0;
+
+        while read_bytes < 2 {
+            read_bytes += self.port.read_buf(&mut ret).await?;
+        }
+
+        if ret[1] != self.expected_response as u8 {
+            return Err(TockloaderError::BootloaderError(ret[1]));
+        }
+
+        let mut response_data = vec![0u8; self.response_len];
+        let mut bytes_read = 0;
+
+        while bytes_read < self.response_len {
+            bytes_read += self.port.read_buf(&mut response_data).await?;
+        }
+
+        Ok((Response::from(ret[1]), response_data))
+    }
+}
+
+impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
+    async fn issue_command(self) -> Result<(Response, Vec<u8>), TockloaderError> {
+        let mut message = vec![];
+
+
+        for i in 0..4 {
+            message.push(self.address[i]);
+        }
+
+        message.push(ESCAPE_CHAR);
+        message.push(Command::WritePage as u8);
+
+        if self.sync {
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
+        }
+
+        let mut bytes_written = 0;
+        while bytes_written != message.len() {
+            bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
+        }
+
+        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut read_bytes = 0;
+
+        while read_bytes < 2 {
+            read_bytes += self.port.read_buf(&mut ret).await?;
+        }
+
+        if ret[1] != self.expected_response as u8 {
+            return Err(TockloaderError::BootloaderError(ret[1]));
+        }
+
+        let mut response_data = vec![0u8; self.response_len];
+        let mut bytes_read = 0;
+
+        while bytes_read < self.response_len {
+            bytes_read += self.port.read_buf(&mut response_data).await?;
+        }
+
+        Ok((Response::from(ret[1]), response_data))
+    }
+}
+
+impl BootloaderCommand<(Response, Vec<u8>)> for ErasePageCommand {
+    async fn issue_command(mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
+        let mut message = vec![ESCAPE_CHAR, Command::ErasePage as u8];
+
+        if self.sync {
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
+        }
+
+        let mut bytes_written = 0;
+        while bytes_written != message.len() {
+            bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
+        }
+
+        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut read_bytes = 0;
+
+        while read_bytes < 2 {
+            read_bytes += self.port.read_buf(&mut ret).await?;
+        }
+
+        if ret[1] != self.expected_response as u8 {
+            return Err(TockloaderError::BootloaderError(ret[1]));
+        }
+
+        let mut response_data = vec![0u8; self.response_len];
+        let mut bytes_read = 0;
+
+        while bytes_read < self.response_len {
+            bytes_read += self.port.read_buf(&mut response_data).await?;
+        }
+
+        Ok((Response::from(ret[1]), response_data))
+    }
 }

@@ -6,7 +6,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use probe_rs::{Core, MemoryInterface};
 use tokio_serial::SerialStream;
 
-use crate::bootloader_serial::{issue_command, Command, Response};
+use crate::bootloader_serial::{BootloaderCommand, ReadRangeCommand, Response};
 
 use super::decode::{bytes_to_string, decode_attribute};
 
@@ -143,16 +143,15 @@ impl SystemAttributes {
             pkt.push(i);
         }
 
-        let (_, buf) = issue_command(
+        let read_command = ReadRangeCommand {
+            address: pkt,
             port,
-            Command::ReadRange,
-            pkt,
-            true,
-            64 * 16,
-            Response::ReadRange,
-        )
-        .await
-        .unwrap();
+            sync: true,
+            response_len: 64 * 16,
+            expected_response: Response::ReadRange,
+        };
+
+        let (_, buf) = read_command.issue_command().await.unwrap();
 
         let mut data = buf.chunks(64);
 
@@ -202,9 +201,16 @@ impl SystemAttributes {
             pkt.push(i);
         }
 
-        let (_, buf) = issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange)
-            .await
-            .unwrap();
+
+            let read_command = ReadRangeCommand {
+                address: pkt,
+                port,
+                sync: true,
+                response_len: 8,
+                expected_response: Response::ReadRange,
+            };
+    
+            let (_, buf) = read_command.issue_command().await.unwrap();
 
         let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
 
@@ -225,16 +231,15 @@ impl SystemAttributes {
             pkt.push(i);
         }
 
-        let (_, kernel_attr_binary) = issue_command(
+        let read_command = ReadRangeCommand {
+            address: pkt,
             port,
-            Command::ReadRange,
-            pkt,
-            true,
-            100,
-            Response::ReadRange,
-        )
-        .await
-        .unwrap();
+            sync: true,
+            response_len: 100,
+            expected_response: Response::ReadRange,
+        };
+
+        let (_, kernel_attr_binary) = read_command.issue_command().await.unwrap();
 
         let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
         let kernel_version = LittleEndian::read_uint(&kernel_attr_binary[95..96], 1);

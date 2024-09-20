@@ -12,7 +12,7 @@ use tbf_parser::{
 use tokio_serial::SerialStream;
 
 use crate::{
-    bootloader_serial::{issue_command, Command, Response},
+    bootloader_serial::{BootloaderCommand, ReadRangeCommand, Response},
     errors::TockloaderError,
 };
 
@@ -129,14 +129,15 @@ impl AppAttributes {
         let mut apps_details: Vec<AppAttributes> = vec![];
 
         loop {
-            let mut pkt = (appaddr as u32).to_le_bytes().to_vec();
-            let length = (8_u16).to_le_bytes().to_vec();
-            for i in length {
-                pkt.push(i);
-            }
+            let read_command = ReadRangeCommand {
+                address: (appaddr as u32).to_le_bytes().to_vec(),
+                port,
+                sync: true,
+                response_len: 8,
+                expected_response: Response::ReadRange,
+            };
 
-            let (_, appdata) =
-                issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange).await?;
+            let (_, appdata) = read_command.issue_command().await?;
 
             let tbf_version: u16;
             let header_size: u16;
@@ -155,21 +156,15 @@ impl AppAttributes {
                 _ => break,
             };
 
-            let mut pkt = (appaddr as u32).to_le_bytes().to_vec();
-            let length = (header_size).to_le_bytes().to_vec();
-            for i in length {
-                pkt.push(i);
-            }
-
-            let (_, header_data) = issue_command(
+            let read_command = ReadRangeCommand {
+                address: (appaddr as u32).to_le_bytes().to_vec(),
                 port,
-                Command::ReadRange,
-                pkt,
-                true,
-                header_size.into(),
-                Response::ReadRange,
-            )
-            .await?;
+                sync: true,
+                response_len: header_size.into(),
+                expected_response: Response::ReadRange,
+            };
+
+            let (_, header_data) = read_command.issue_command().await?;
 
             let header = parse_tbf_header(&header_data, tbf_version)
                 .map_err(TockloaderError::ParsingError)?;
@@ -189,15 +184,15 @@ impl AppAttributes {
                     pkt.push(i);
                 }
 
-                let (_, appfooter) = issue_command(
+                let read_command = ReadRangeCommand {
+                    address: (appaddr as u32).to_le_bytes().to_vec(),
                     port,
-                    Command::ReadRange,
-                    pkt,
-                    true,
-                    (total_footers_size - (footer_offset - binary_end_offset)) as usize,
-                    Response::ReadRange,
-                )
-                .await?;
+                    sync: true,
+                    response_len: (total_footers_size - (footer_offset - binary_end_offset)) as usize,
+                    expected_response: Response::ReadRange,
+                };
+
+                let (_, appfooter) = read_command.issue_command().await?;
 
                 let footer_info =
                     parse_tbf_footer(&appfooter).map_err(TockloaderError::ParsingError)?;
