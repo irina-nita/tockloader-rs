@@ -77,7 +77,7 @@ impl SystemAttributes {
                                     .trim_start_matches("0x"),
                                 16,
                             )
-                            .expect("Failed to decode app address."),
+                            .map_err(|_| TockloaderError::MisconfiguredBoard("Invalid start address.".to_owned()))?,
                         );
                     }
                     3 => {
@@ -96,12 +96,7 @@ impl SystemAttributes {
 
         let _ = board_core.read_8(address, &mut buf);
 
-        let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
-
-        let mut string = String::new();
-        for n in decoder {
-            string.push(n.expect("Error decoding bootloader version"));
-        }
+        let string = String::from_utf8(buf.to_vec()).map_err(|_| TockloaderError::MisconfiguredBoard("Data may be corrupted. System attribure is not UTF-8.".to_owned()))?;
 
         let string = string.trim_matches(char::from(0));
 
@@ -178,7 +173,7 @@ impl SystemAttributes {
                                     .trim_start_matches("0x"),
                                 16,
                             )
-                            .expect("Failed to decode app address."),
+                            .map_err(|_| TockloaderError::MisconfiguredBoard("Invalid start address.".to_owned()))?,
                         );
                     }
                     3 => {
@@ -200,12 +195,7 @@ impl SystemAttributes {
         let (_, buf) = issue_command(port, Command::ReadRange, pkt, true, 8, Response::ReadRange)
             .await?;
 
-        let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
-
-        let mut string = String::new();
-        for n in decoder {
-            string.push(n.expect("Error decoding bootloader version"));
-        }
+        let string = String::from_utf8(buf).map_err(|_| TockloaderError::MisconfiguredBoard("Data may be corrupted. System attribure is not UTF-8.".to_owned()))?;
 
         let string = string.trim_matches(char::from(0));
 
