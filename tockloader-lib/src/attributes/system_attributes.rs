@@ -137,7 +137,7 @@ impl SystemAttributes {
     pub(crate) async fn read_system_attributes_serial(port: &mut SerialStream) -> Self {
         let mut result = SystemAttributes::new();
 
-        let read_command = ReadRangeCommand {
+        let mut read_command = ReadRangeCommand {
             address: 0x600,
             length: 1024,
             port,
@@ -190,7 +190,7 @@ impl SystemAttributes {
             }
         }
 
-            let read_command = ReadRangeCommand {
+            let mut read_command = ReadRangeCommand {
                 address: 0x40E,
                 length: 8,
                 port,
@@ -212,7 +212,7 @@ impl SystemAttributes {
 
         result.bootloader_version = Some(string.to_owned());
 
-        let read_command = ReadRangeCommand {
+        let mut read_command = ReadRangeCommand {
             address: (result.appaddr.unwrap() - 100) as u32,
             length: 100,
             port,

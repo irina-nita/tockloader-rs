@@ -55,7 +55,7 @@ pub async fn list(
         }
         Connection::Serial(mut port) => {
 
-            let read_command = PingCommand {
+            let mut read_command = PingCommand {
                 port: &mut port,
                 sync: true,
                 response_len: 0,
@@ -66,7 +66,7 @@ pub async fn list(
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let read_command = PingCommand {
+                let mut read_command = PingCommand {
                     port: &mut port,
                     sync: true,
                     response_len: 0,
@@ -112,25 +112,17 @@ pub async fn info(
             }
         }
         Connection::Serial(mut port) => {
-            let read_command = PingCommand {
+            let mut ping_command = PingCommand {
                 port: &mut port,
                 sync: true,
                 response_len: 0,
             };
 
-            let response = read_command.issue_command().await?;
-
-            dbg!(&response);
+            let response = ping_command.ping_bootloader_and_wait_for_response().await?;
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let read_command = PingCommand {
-                    port: &mut port,
-                    sync: true,
-                    response_len: 0,
-                };
-    
-                let _ = read_command.issue_command().await?;
+                let _ = ping_command.ping_bootloader_and_wait_for_response().await?;
             }
 
             let system_attributes =
@@ -326,7 +318,7 @@ pub async fn install_app(
             Ok(())
         }
         Connection::Serial(mut port) => {
-            let read_command = PingCommand {
+            let mut read_command = PingCommand {
                 port: &mut port,
                 sync: true,
                 response_len: 0,
@@ -337,7 +329,7 @@ pub async fn install_app(
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let read_command = PingCommand {
+                let mut read_command = PingCommand {
                     port: &mut port,
                     sync: true,
                     response_len: 0,
@@ -390,7 +382,7 @@ pub async fn install_app(
                     ))?;
             loop {
                 // Create the command using the new Command trait and issue it
-                let read_command = ReadRangeCommand {
+                let mut read_command = ReadRangeCommand {
                     address: address as u32,
                     length: 200,
                     port: &mut port,
@@ -485,7 +477,7 @@ pub async fn install_app(
                             }
 
                             for i in valid_pages {
-                                let write_command = WritePageCommand {
+                                let mut write_command = WritePageCommand {
                                     address: (new_address as u32 + (i as usize * page_size) as u32)
                                         .to_le_bytes()
                                         .to_vec(),
@@ -503,7 +495,7 @@ pub async fn install_app(
 
                             new_address += binary.len() as u64;
 
-                            let erase_command = ErasePageCommand {
+                            let mut erase_command = ErasePageCommand {
                                 address: (new_address as u32).to_le_bytes().to_vec(),
                                 port: &mut port,
                                 sync: true,

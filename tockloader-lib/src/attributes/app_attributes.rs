@@ -129,7 +129,7 @@ impl AppAttributes {
         let mut apps_details: Vec<AppAttributes> = vec![];
 
         loop {
-            let read_command = ReadRangeCommand {
+            let mut read_command = ReadRangeCommand {
                 address: appaddr as u32,
                 length: 8,
                 port,
@@ -157,7 +157,7 @@ impl AppAttributes {
                 _ => break,
             };
 
-            let read_command = ReadRangeCommand {
+            let mut read_command = ReadRangeCommand {
                 address: appaddr as u32,
                 length: header_size,
                 port,
@@ -178,7 +178,7 @@ impl AppAttributes {
             let mut footer_number = 0;
 
             loop {
-                let read_command = ReadRangeCommand {
+                let mut read_command = ReadRangeCommand {
                     address: appaddr as u32 + footer_offset,
                     length: (total_footers_size - (footer_offset - binary_end_offset)) as u16,
                     port,

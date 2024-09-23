@@ -90,13 +90,34 @@ impl From<u8> for Response {
 }
 
 pub trait BootloaderCommand<R> {
-    async fn issue_command(self) -> Result<R, TockloaderError>;
+    async fn issue_command(&mut self) -> Result<R, TockloaderError>;
 }
 
 pub struct PingCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
     pub(crate) sync: bool,
     pub(crate) response_len: usize,
+}
+
+
+impl<'a> PingCommand<'a> {
+    pub async fn ping_bootloader_and_wait_for_response(&mut self) -> Result<Response, TockloaderError>{
+        let ping_pkt = [ESCAPE_CHAR, Command::Ping as u8];
+
+        let mut ret = BytesMut::with_capacity(200);
+
+        for _ in 0..30 {
+            let mut bytes_written = 0;
+            while bytes_written != ping_pkt.len() {
+                bytes_written += self.port.write_buf(&mut &ping_pkt[bytes_written..]).await?;
+            }
+            self.port.read_buf(&mut ret).await?;
+            if ret[1] == Response::Pong as u8 {
+                return Ok(Response::from(ret[1]));
+            }
+        }
+        Ok(Response::from(ret[1]))
+    } 
 }
 
 pub struct WritePageCommand<'a> {
@@ -126,7 +147,7 @@ pub struct ErasePageCommand<'a> {
 }
 
 impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
-    async fn issue_command(self) -> Result<Response, TockloaderError> {
+    async fn issue_command(&mut self) -> Result<Response, TockloaderError> {
         let mut message = vec![];
         
         if self.sync {
@@ -155,7 +176,7 @@ impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
 }
 
 impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
-    async fn issue_command(self) -> Result<(Response, Vec<u8>), TockloaderError> {
+    async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
         let mut message = self.data.clone();
 
         for i in 0..4 {
@@ -203,7 +224,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
 }
 
 impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
-    async fn issue_command(self) -> Result<(Response, Vec<u8>), TockloaderError> {
+    async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
         let mut message = vec![];
         
         if self.sync {
@@ -269,7 +290,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
 }
 
 impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ErasePageCommand<'a> {
-    async fn issue_command(self) -> Result<(Response, Vec<u8>), TockloaderError> {
+    async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
         let mut message = vec![];
 
         for i in 0..4 {
