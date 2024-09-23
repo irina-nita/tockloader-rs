@@ -137,17 +137,12 @@ impl SystemAttributes {
     pub(crate) async fn read_system_attributes_serial(port: &mut SerialStream) -> Self {
         let mut result = SystemAttributes::new();
 
-        let mut pkt = (0x600_u32).to_le_bytes().to_vec();
-        let length = (1024_u16).to_le_bytes().to_vec();
-        for i in length {
-            pkt.push(i);
-        }
-
         let read_command = ReadRangeCommand {
-            address: pkt,
+            address: 0x600,
+            length: 1024,
             port,
             sync: true,
-            response_len: 64 * 16,
+            response_len: 1024,
             expected_response: Response::ReadRange,
         };
 
@@ -195,15 +190,9 @@ impl SystemAttributes {
             }
         }
 
-        let mut pkt = (0x40E_u32).to_le_bytes().to_vec();
-        let length = (8_u16).to_le_bytes().to_vec();
-        for i in length {
-            pkt.push(i);
-        }
-
-
             let read_command = ReadRangeCommand {
-                address: pkt,
+                address: 0x40E,
+                length: 8,
                 port,
                 sync: true,
                 response_len: 8,
@@ -223,16 +212,9 @@ impl SystemAttributes {
 
         result.bootloader_version = Some(string.to_owned());
 
-        let mut pkt = ((result.appaddr.unwrap() - 100) as u32)
-            .to_le_bytes()
-            .to_vec();
-        let length = (100_u16).to_le_bytes().to_vec();
-        for i in length {
-            pkt.push(i);
-        }
-
         let read_command = ReadRangeCommand {
-            address: pkt,
+            address: (result.appaddr.unwrap() - 100) as u32,
+            length: 100,
             port,
             sync: true,
             response_len: 100,

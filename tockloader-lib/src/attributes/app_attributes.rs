@@ -130,7 +130,8 @@ impl AppAttributes {
 
         loop {
             let read_command = ReadRangeCommand {
-                address: (appaddr as u32).to_le_bytes().to_vec(),
+                address: appaddr as u32,
+                length: 8,
                 port,
                 sync: true,
                 response_len: 8,
@@ -157,7 +158,8 @@ impl AppAttributes {
             };
 
             let read_command = ReadRangeCommand {
-                address: (appaddr as u32).to_le_bytes().to_vec(),
+                address: appaddr as u32,
+                length: header_size,
                 port,
                 sync: true,
                 response_len: header_size.into(),
@@ -176,16 +178,9 @@ impl AppAttributes {
             let mut footer_number = 0;
 
             loop {
-                let mut pkt = (appaddr as u32 + footer_offset).to_le_bytes().to_vec();
-                let length = ((total_footers_size - (footer_offset - binary_end_offset)) as u16)
-                    .to_le_bytes()
-                    .to_vec();
-                for i in length {
-                    pkt.push(i);
-                }
-
                 let read_command = ReadRangeCommand {
-                    address: (appaddr as u32).to_le_bytes().to_vec(),
+                    address: appaddr as u32 + footer_offset,
+                    length: (total_footers_size - (footer_offset - binary_end_offset)) as u16,
                     port,
                     sync: true,
                     response_len: (total_footers_size - (footer_offset - binary_end_offset)) as usize,

@@ -59,7 +59,6 @@ pub async fn list(
                 port: &mut port,
                 sync: true,
                 response_len: 0,
-                expected_response: Response::Pong,
             };
 
             let response = read_command.issue_command().await?;
@@ -71,7 +70,6 @@ pub async fn list(
                     port: &mut port,
                     sync: true,
                     response_len: 0,
-                    expected_response: Response::Pong,
                 };
     
                 let _ = read_command.issue_command().await?;
@@ -118,11 +116,11 @@ pub async fn info(
                 port: &mut port,
                 sync: true,
                 response_len: 0,
-                expected_response: Response::Pong,
             };
 
             let response = read_command.issue_command().await?;
 
+            dbg!(&response);
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -130,7 +128,6 @@ pub async fn info(
                     port: &mut port,
                     sync: true,
                     response_len: 0,
-                    expected_response: Response::Pong,
                 };
     
                 let _ = read_command.issue_command().await?;
@@ -333,7 +330,6 @@ pub async fn install_app(
                 port: &mut port,
                 sync: true,
                 response_len: 0,
-                expected_response: Response::Pong,
             };
 
             let response = read_command.issue_command().await?;
@@ -345,7 +341,6 @@ pub async fn install_app(
                     port: &mut port,
                     sync: true,
                     response_len: 0,
-                    expected_response: Response::Pong,
                 };
     
                 let _ = read_command.issue_command().await?;
@@ -396,7 +391,8 @@ pub async fn install_app(
             loop {
                 // Create the command using the new Command trait and issue it
                 let read_command = ReadRangeCommand {
-                    address: (address as u32).to_le_bytes().to_vec(),
+                    address: address as u32,
+                    length: 200,
                     port: &mut port,
                     sync: true,
                     response_len: 200,

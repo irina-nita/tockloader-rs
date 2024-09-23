@@ -38,7 +38,7 @@ pub enum Command {
     SetStartAddress = 0x23,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum Response {
     // Responses from the bootloader
     Overflow = 0x10,
@@ -97,7 +97,6 @@ pub struct PingCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
     pub(crate) sync: bool,
     pub(crate) response_len: usize,
-    pub(crate) expected_response: Response,
 }
 
 pub struct WritePageCommand<'a> {
@@ -111,10 +110,11 @@ pub struct WritePageCommand<'a> {
 
 pub struct ReadRangeCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
+    pub(crate) length: u16, 
     pub(crate) sync: bool,
     pub(crate) response_len: usize,
     pub(crate) expected_response: Response,
-    pub(crate) address: Vec<u8>,
+    pub(crate) address: u32,
 }
 
 pub struct ErasePageCommand<'a> {
@@ -127,11 +127,16 @@ pub struct ErasePageCommand<'a> {
 
 impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
     async fn issue_command(self) -> Result<Response, TockloaderError> {
-        let mut message = vec![ESCAPE_CHAR, Command::Ping as u8];
-
+        let mut message = vec![];
+        
         if self.sync {
-            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
+            message.push(SYNC_MESSAGE[0]);
+            message.push(SYNC_MESSAGE[1]);
+            message.push(SYNC_MESSAGE[2]);
         }
+
+        message.push(ESCAPE_CHAR);
+        message.push(Command::Ping as u8);
 
         let mut ret = BytesMut::with_capacity(self.response_len + 2);
         let mut bytes_written = 0;
@@ -145,11 +150,7 @@ impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
             read_bytes += self.port.read_buf(&mut ret).await?;
         }
 
-        if ret[1] == self.expected_response as u8 {
-            return Ok(Response::from(ret[1]));
-        }
-
-        Err(TockloaderError::BootloaderError(ret[1]))
+        return Ok(Response::from(ret[1]));
     }
 }
 
@@ -204,25 +205,34 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
 impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
     async fn issue_command(self) -> Result<(Response, Vec<u8>), TockloaderError> {
         let mut message = vec![];
+        
+        if self.sync {
+            message.push(SYNC_MESSAGE[0]);
+            message.push(SYNC_MESSAGE[1]);
+            message.push(SYNC_MESSAGE[2]);
+        }
 
+        let address = self.address.to_be_bytes().to_vec();
+        dbg!(&address);
+        let length = self.length.to_le_bytes().to_vec();
 
-        for i in 0..4 {
-            message.push(self.address[i]);
+        for i in address.iter() {
+            message.push(*i);
+        }
+
+        for i in length.iter() {
+            message.push(*i);
         }
 
         message.push(ESCAPE_CHAR);
         message.push(Command::ReadRange as u8);
 
-        if self.sync {
-            message.insert(0, SYNC_MESSAGE[0]);
-            message.insert(1, SYNC_MESSAGE[1]);
-            message.insert(2, SYNC_MESSAGE[2]);
-        }
-
         let mut bytes_written = 0;
         while bytes_written != message.len() {
             bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
         }
+
+        dbg!(bytes_written);
 
         let mut ret = BytesMut::with_capacity(self.response_len + 2);
         let mut read_bytes = 0;
@@ -230,19 +240,29 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
         while read_bytes < 2 {
             read_bytes += self.port.read_buf(&mut ret).await?;
         }
+        
+        let ret = vec![ret[0], ret[1]];
 
+        dbg!(read_bytes);
         dbg!(&ret);
 
         if ret[1] != self.expected_response as u8 {
             return Err(TockloaderError::BootloaderError(ret[1]));
         }
 
+        dbg!(ret[1]);
+        dbg!(self.expected_response);
+
         let mut response_data = vec![0u8; self.response_len];
         let mut bytes_read = 0;
 
-        while bytes_read < self.response_len {
+        while bytes_read < self.response_len - 6{
+            dbg!(bytes_read);
             bytes_read += self.port.read_buf(&mut response_data).await?;
         }
+
+        dbg!(bytes_read);
+        dbg!(&response_data);
 
         Ok((Response::from(ret[1]), response_data))
     }
