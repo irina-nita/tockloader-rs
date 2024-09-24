@@ -6,7 +6,10 @@ use byteorder::{ByteOrder, LittleEndian};
 use probe_rs::{Core, MemoryInterface};
 use tokio_serial::SerialStream;
 
-use crate::{bootloader_serial::{BootloaderCommand, ReadRangeCommand, Response}, errors::TockloaderError};
+use crate::{
+    bootloader_serial::{BootloaderCommand, ReadRangeCommand, Response},
+    errors::TockloaderError,
+};
 
 use super::decode::{bytes_to_string, decode_attribute};
 
@@ -43,12 +46,16 @@ impl SystemAttributes {
     }
 
     // TODO: explain what is happening here
-    pub(crate) fn read_system_attributes_probe(board_core: &mut Core) -> Result<Self, TockloaderError> {
+    pub(crate) fn read_system_attributes_probe(
+        board_core: &mut Core,
+    ) -> Result<Self, TockloaderError> {
         let mut result = SystemAttributes::new();
         let address = 0x600;
         let mut buf = [0u8; 64 * 16];
 
-        let _ = board_core.read(address, &mut buf).map_err(TockloaderError::ProbeRsReadError)?;
+        board_core
+            .read(address, &mut buf)
+            .map_err(TockloaderError::ProbeRsReadError)?;
 
         let mut data = buf.chunks(64);
 
@@ -87,7 +94,7 @@ impl SystemAttributes {
                     3 => {
                         result.boothash = Some(decoded_attributes.value.to_string());
                     }
-                    _ => {},
+                    _ => {}
                 }
             } else {
                 continue;
@@ -113,9 +120,12 @@ impl SystemAttributes {
 
         let mut kernel_attr_binary = [0u8; 100];
         board_core
-            .read(result.appaddr.ok_or(TockloaderError::MisconfiguredBoard(
-                "No start address found.".to_owned(),
-            ))? - 100, &mut kernel_attr_binary)
+            .read(
+                result.appaddr.ok_or(TockloaderError::MisconfiguredBoard(
+                    "No start address found.".to_owned(),
+                ))? - 100,
+                &mut kernel_attr_binary,
+            )
             .map_err(TockloaderError::ProbeRsReadError)?;
 
         let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
@@ -138,7 +148,9 @@ impl SystemAttributes {
     }
 
     // TODO: explain what is happening here
-    pub(crate) async fn read_system_attributes_serial(port: &mut SerialStream) -> Result<Self, TockloaderError> {
+    pub(crate) async fn read_system_attributes_serial(
+        port: &mut SerialStream,
+    ) -> Result<Self, TockloaderError> {
         let mut result = SystemAttributes::new();
 
         let mut read_command = ReadRangeCommand {
@@ -190,8 +202,7 @@ impl SystemAttributes {
                     }
                     _ => panic!("Board data not found!"),
                 }
-            }
-            else {
+            } else {
                 continue;
             }
         }

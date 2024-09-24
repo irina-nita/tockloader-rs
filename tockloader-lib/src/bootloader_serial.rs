@@ -169,7 +169,7 @@ impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
             read_bytes += self.port.read_buf(&mut ret).await?;
         }
 
-        return Ok(Response::from(ret[1]));
+        Ok(Response::from(ret[1]))
     }
 }
 
@@ -185,8 +185,8 @@ impl<'a> BootloaderCommand<Response> for WritePageCommand<'a> {
 
         let address = self.address.to_le_bytes().to_vec();
 
-        for i in 0..4 {
-            message.insert(i, address[i]);
+        for (i, byte) in address.iter().enumerate().take(4)  {
+            message.insert(i, *byte);
         }
 
         message.push(ESCAPE_CHAR);
