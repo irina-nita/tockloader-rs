@@ -55,22 +55,21 @@ pub async fn list(
         }
         Connection::Serial(mut port) => {
 
-            let mut read_command = PingCommand {
+            let mut ping_command = PingCommand {
                 port: &mut port,
-                sync: true,
+                sync: false,
             };
 
-            let response = read_command.issue_command().await?;
-
+            let response = ping_command.ping_bootloader_and_wait_for_response().await?;
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let mut read_command = PingCommand {
+                let mut ping_command = PingCommand {
                     port: &mut port,
-                    sync: true,
+                    sync: false,
                 };
     
-                let _ = read_command.issue_command().await?;
+                let _ = ping_command.ping_bootloader_and_wait_for_response().await?;
             }
 
             let system_attributes =
@@ -116,7 +115,6 @@ pub async fn info(
             };
 
             let response = ping_command.ping_bootloader_and_wait_for_response().await?;
-            dbg!(response);
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -125,8 +123,7 @@ pub async fn info(
                     sync: false,
                 };
     
-                let response = ping_command.ping_bootloader_and_wait_for_response().await?;
-                dbg!(response);
+                let _ = ping_command.ping_bootloader_and_wait_for_response().await?;
             }
 
             let system_attributes =
@@ -322,22 +319,21 @@ pub async fn install_app(
             Ok(())
         }
         Connection::Serial(mut port) => {
-            let mut read_command = PingCommand {
+            let mut ping_command = PingCommand {
                 port: &mut port,
                 sync: false,
             };
 
-            let response = read_command.issue_command().await?;
-
+            let response = ping_command.ping_bootloader_and_wait_for_response().await?;
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let mut read_command = PingCommand {
+                let mut ping_command = PingCommand {
                     port: &mut port,
                     sync: false,
                 };
     
-                let _ = read_command.issue_command().await?;
+                let _ = ping_command.ping_bootloader_and_wait_for_response().await?;
             }
 
             let system_attributes =
@@ -478,17 +474,16 @@ pub async fn install_app(
                                 valid_pages.push(i);
                             }
 
+                            dbg!(&binary);
+
                             for i in valid_pages {
                                 let mut write_command = WritePageCommand {
-                                    address: (new_address as u32 + (i as usize * page_size) as u32)
-                                        .to_le_bytes()
-                                        .to_vec(),
+                                    address: (new_address as u32 + (i as usize * page_size) as u32),
                                     data: binary
                                         [(i as usize * page_size)..((i + 1) as usize * page_size)]
                                         .to_vec(),
                                     port: &mut port,
                                     sync: true,
-                                    response_len: 0,
                                     expected_response: Response::OK,
                                 };
 

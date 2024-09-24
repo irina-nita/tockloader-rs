@@ -126,9 +126,8 @@ pub struct WritePageCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
     pub(crate) data: Vec<u8>,
     pub(crate) sync: bool,
-    pub(crate) response_len: usize,
     pub(crate) expected_response: Response,
-    pub(crate) address: Vec<u8>,
+    pub(crate) address: u32,
 }
 
 pub struct ReadRangeCommand<'a> {
@@ -177,13 +176,9 @@ impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
     }
 }
 
-impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
-    async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
+impl<'a> BootloaderCommand<Response> for WritePageCommand<'a> {
+    async fn issue_command(&mut self) -> Result<Response, TockloaderError> {
         let mut message = self.data.clone();
-
-        for i in 0..4 {
-            message.insert(i, self.address[i]);
-        }
 
         for i in (0..message.len()).rev() {
             if message[i] == ESCAPE_CHAR {
@@ -191,11 +186,19 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
             }
         }
 
+        let address = self.address.to_le_bytes().to_vec();
+
+        for i in 0..4 {
+            message.insert(i, address[i]);
+        }
+
         message.push(ESCAPE_CHAR);
         message.push(Command::WritePage as u8);
 
         if self.sync {
-            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
+            message.push(SYNC_MESSAGE[0]);
+            message.push(SYNC_MESSAGE[1]);
+            message.push(SYNC_MESSAGE[2]);
         }
 
         let mut bytes_written = 0;
@@ -203,7 +206,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
             bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
         }
 
-        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut ret = BytesMut::with_capacity(2);
         let mut read_bytes = 0;
 
         while read_bytes < 2 {
@@ -214,14 +217,9 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
             return Err(TockloaderError::BootloaderError(ret[1]));
         }
 
-        let mut response_data = vec![0u8; self.response_len];
-        let mut bytes_read = 0;
+        dbg!(Response::from(ret[1]));
 
-        while bytes_read < self.response_len {
-            bytes_read += self.port.read_buf(&mut response_data).await?;
-        }
-
-        Ok((Response::from(ret[1]), response_data))
+        Ok(Response::from(ret[1]))
     }
 }
 
