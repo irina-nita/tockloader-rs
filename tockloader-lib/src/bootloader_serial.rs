@@ -134,7 +134,6 @@ pub struct ReadRangeCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
     pub(crate) length: u16, 
     pub(crate) sync: bool,
-    pub(crate) response_len: usize,
     pub(crate) expected_response: Response,
     pub(crate) address: u32,
 }
@@ -142,7 +141,6 @@ pub struct ReadRangeCommand<'a> {
 pub struct ErasePageCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
     pub(crate) sync: bool,
-    pub(crate) response_len: usize,
     pub(crate) expected_response: Response,
     pub(crate) address: Vec<u8>,
 }
@@ -152,9 +150,7 @@ impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
         let mut message = vec![];
         
         if self.sync {
-            message.push(SYNC_MESSAGE[0]);
-            message.push(SYNC_MESSAGE[1]);
-            message.push(SYNC_MESSAGE[2]);
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
         }
 
         message.push(ESCAPE_CHAR);
@@ -196,9 +192,7 @@ impl<'a> BootloaderCommand<Response> for WritePageCommand<'a> {
         message.push(Command::WritePage as u8);
 
         if self.sync {
-            message.push(SYNC_MESSAGE[0]);
-            message.push(SYNC_MESSAGE[1]);
-            message.push(SYNC_MESSAGE[2]);
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
         }
 
         let mut bytes_written = 0;
@@ -240,9 +234,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
         message.push(Command::ReadRange as u8);
 
         if self.sync {
-            message.insert(0, SYNC_MESSAGE[0]);
-            message.insert(1, SYNC_MESSAGE[1]);
-            message.insert(2, SYNC_MESSAGE[2]);
+            message.splice(0..0, SYNC_MESSAGE.iter().cloned());
         }
 
         let mut bytes_written = 0;
@@ -250,7 +242,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
             bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
         }
 
-        let bytes_to_read = 2 + self.response_len;
+        let bytes_to_read = 2 + self.length;
         let mut ret = BytesMut::with_capacity(2);
 
         // We are waiting for 2 bytes to be read
@@ -271,7 +263,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
         let mut value = 2;
 
         while bytes_to_read > value {
-            value += self.port.read_buf(&mut new_data).await?;
+            value += self.port.read_buf(&mut new_data).await? as u16;
         }
 
         // De-escape and add array of read in the bytes
@@ -287,8 +279,8 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
     }
 }
 
-impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ErasePageCommand<'a> {
-    async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
+impl<'a> BootloaderCommand<Response> for ErasePageCommand<'a> {
+    async fn issue_command(&mut self) -> Result<Response, TockloaderError> {
         let mut message = vec![];
 
         for i in 0..4 {
@@ -307,7 +299,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ErasePageCommand<'a> {
             bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
         }
 
-        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut ret = BytesMut::with_capacity(2);
         let mut read_bytes = 0;
 
         while read_bytes < 2 {
@@ -318,13 +310,6 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ErasePageCommand<'a> {
             return Err(TockloaderError::BootloaderError(ret[1]));
         }
 
-        let mut response_data = vec![0u8; self.response_len];
-        let mut bytes_read = 0;
-
-        while bytes_read < self.response_len {
-            bytes_read += self.port.read_buf(&mut response_data).await?;
-        }
-
-        Ok((Response::from(ret[1]), response_data))
+        Ok(Response::from(ret[1]))
     }
 }

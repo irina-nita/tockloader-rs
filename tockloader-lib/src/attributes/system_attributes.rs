@@ -142,7 +142,6 @@ impl SystemAttributes {
             length: 1024,
             port,
             sync: true,
-            response_len: 1024,
             expected_response: Response::ReadRange,
         };
 
@@ -195,7 +194,6 @@ impl SystemAttributes {
                 length: 8,
                 port,
                 sync: true,
-                response_len: 8,
                 expected_response: Response::ReadRange,
             };
     
@@ -217,7 +215,6 @@ impl SystemAttributes {
             length: 100,
             port,
             sync: true,
-            response_len: 100,
             expected_response: Response::ReadRange,
         };
 

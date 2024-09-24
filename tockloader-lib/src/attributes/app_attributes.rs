@@ -134,7 +134,6 @@ impl AppAttributes {
                 length: 8,
                 port,
                 sync: true,
-                response_len: 8,
                 expected_response: Response::ReadRange,
             };
 
@@ -162,7 +161,6 @@ impl AppAttributes {
                 length: header_size,
                 port,
                 sync: true,
-                response_len: header_size.into(),
                 expected_response: Response::ReadRange,
             };
 
@@ -183,7 +181,6 @@ impl AppAttributes {
                     length: (total_footers_size - (footer_offset - binary_end_offset)) as u16,
                     port,
                     sync: true,
-                    response_len: (total_footers_size - (footer_offset - binary_end_offset)) as usize,
                     expected_response: Response::ReadRange,
                 };
 

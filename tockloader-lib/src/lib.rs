@@ -385,7 +385,6 @@ pub async fn install_app(
                     length: 200,
                     port: &mut port,
                     sync: true,
-                    response_len: 200,
                     expected_response: Response::ReadRange,
                 };
     
@@ -494,7 +493,6 @@ pub async fn install_app(
                                 address: (new_address as u32).to_le_bytes().to_vec(),
                                 port: &mut port,
                                 sync: true,
-                                response_len: 0,
                                 expected_response: Response::OK,
                             };
 
