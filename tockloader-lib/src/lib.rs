@@ -245,7 +245,6 @@ pub async fn install_app(
 
             if needs_padding {
                 let remaining = page_size - (binary.len() % page_size);
-                dbg!(remaining);
                 for _i in 0..remaining {
                     binary.push(0xFF);
                 }
@@ -286,7 +285,6 @@ pub async fn install_app(
             }
 
             for i in valid_pages {
-                println!("Writing page number {}", i);
                 // Create the packet that we send to the bootloader
                 // First four bytes are the address of the page
                 let mut pkt = Vec::new();
@@ -506,6 +504,90 @@ pub async fn install_app(
                 }
                 Err(e) => Err(TockloaderError::MisconfiguredBoard(e)),
             }
+        }
+    }
+}
+
+pub async fn erase_apps(choice: Connection,
+    core_index: Option<&usize>,
+) -> Result<(), TockloaderError> {
+    match choice {
+        Connection::ProbeRS(mut session) => {
+            // Get core - if not specified, by default is 0
+            let mut core = session
+                .core(*core_index.unwrap())
+                .map_err(|e| TockloaderError::CoreAccessError(*core_index.unwrap(), e))?;
+            // Get board data
+            let system_attributes = SystemAttributes::read_system_attributes_probe(&mut core);
+            
+            let address =
+                system_attributes
+                    .appaddr
+                    .ok_or(TockloaderError::MisconfiguredBoard(
+                        "No start address found.".to_owned(),
+                    ))?;
+
+            drop(core);
+
+            let mut loader = session.target().flash_loader();
+
+            let pkt = vec![0xFF_u8; 512];        
+
+            loader
+                .add_data(
+                    address,
+                    &pkt,
+                )
+                .map_err(TockloaderError::ProbeRsWriteError)?;
+    
+            let mut options = DownloadOptions::default();
+            options.keep_unwritten_bytes = true;
+    
+            // Finally, the data can be programmed
+            loader
+                .commit(&mut session, options)
+                .map_err(TockloaderError::ProbeRsWriteError)?;
+            
+            Ok(())
+        }
+        Connection::Serial(mut port) => {
+            let mut ping_command = PingCommand {
+                port: &mut port,
+                sync: false,
+            };
+
+            let response = ping_command.ping_bootloader_and_wait_for_response().await?;
+
+            if response as u8 != Response::Pong as u8 {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                let mut ping_command = PingCommand {
+                    port: &mut port,
+                    sync: false,
+                };
+    
+                let _ = ping_command.ping_bootloader_and_wait_for_response().await?;
+            }
+
+            let system_attributes =
+                SystemAttributes::read_system_attributes_serial(&mut port).await;
+
+
+            let address = system_attributes
+            .appaddr
+            .ok_or(TockloaderError::MisconfiguredBoard(
+                "No start address found.".to_owned(),
+            ))?;
+
+            let mut erase_command = ErasePageCommand {
+                address: (address as u32).to_le_bytes().to_vec(),
+                port: &mut port,
+                sync: true,
+                expected_response: Response::OK,
+            };
+
+            erase_command.issue_command().await?;
+
+            Ok(())
         }
     }
 }

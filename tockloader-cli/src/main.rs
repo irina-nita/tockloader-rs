@@ -10,9 +10,7 @@ use cli::make_cli;
 use display::{print_info, print_list};
 use inquire::Select;
 use tockloader_lib::{
-    connection::{Connection, ConnectionInfo},
-    info, install_app, list, list_debug_probes, list_serial_ports,
-    tabs::tab::Tab,
+    connection::{Connection, ConnectionInfo}, erase_apps, info, install_app, list, list_debug_probes, list_serial_ports, tabs::tab::Tab
 };
 
 #[tokio::main]
@@ -134,6 +132,42 @@ async fn main() -> Result<()> {
                 .context("Failed to open probe connection.")?;
                 // Install app
                 install_app(conn, sub_matches.get_one::<usize>("core"), tab_file)
+                    .await
+                    .context("Failed to install app.")?;
+            }
+        }
+        Some(("erase-apps", sub_matches)) => {
+            // If "--serial" flag is used, we choose the serial connection
+            if sub_matches.get_one::<bool>("serial").is_some_and(|x| *x) {
+                let serial_ports = list_serial_ports().context("Failed to list serial ports.")?;
+                // Let the user choose the port that will be used
+                let port_names: Vec<_> = serial_ports.iter().map(|p| p.port_name.clone()).collect();
+                let ans = Select::new("Which serial port do you want to use?", port_names)
+                    .prompt()
+                    .context("No device is connected.")?;
+                // Open connection
+                let conn = Connection::open(ConnectionInfo::from(ans), None)
+                    .context("Failed to open serial connection.")?;
+                // Install app
+                erase_apps(conn, None)
+                    .await
+                    .context("Failed to erase app(s).")?;
+            } else {
+                let ans = Select::new("Which debug probe do you want to use?", list_debug_probes())
+                    .prompt()
+                    .context("No debug probe is connected.")?;
+                let conn = Connection::open(
+                    ConnectionInfo::ProbeInfo(ans),
+                    Some(
+                        sub_matches
+                            .get_one::<String>("chip")
+                            .context("No chip has been provided.")?
+                            .to_string(),
+                    ),
+                )
+                .context("Failed to open probe connection.")?;
+                // Install app
+                erase_apps(conn, sub_matches.get_one::<usize>("core"))
                     .await
                     .context("Failed to install app.")?;
             }
