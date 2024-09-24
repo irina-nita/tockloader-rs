@@ -229,8 +229,7 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
     async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
         let mut message = vec![];
 
-        let address = self.address.to_be_bytes().to_vec();
-        dbg!(&address);
+        let address = self.address.to_le_bytes().to_vec();
         let length = self.length.to_le_bytes().to_vec();
 
         for i in address.iter() {
@@ -254,8 +253,6 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
         while bytes_written != message.len() {
             bytes_written += self.port.write_buf(&mut &message[bytes_written..]).await?;
         }
-
-        dbg!(bytes_written);
 
         let bytes_to_read = 2 + self.response_len;
         let mut ret = BytesMut::with_capacity(2);
@@ -289,8 +286,6 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
         }
 
         ret.extend_from_slice(&new_data);
-    
-        dbg!(&ret);
 
         Ok((Response::from(ret[1]), ret[2..].to_vec()))
     }

@@ -31,7 +31,7 @@ async fn main() -> Result<()> {
                 .context("Failed to run console.")?;
         }
         Some(("list", sub_matches)) => {
-            if sub_matches.get_one::<bool>("serial").is_some() {
+            if sub_matches.get_one::<bool>("serial").is_some_and(|x| *x) {
                 let serial_ports = list_serial_ports().context("Failed to list serial ports.")?;
                 let port_names: Vec<_> = serial_ports.iter().map(|p| p.port_name.clone()).collect();
                 let ans = Select::new("Which serial port do you want to use?", port_names)
@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
             }
         }
         Some(("info", sub_matches)) => {
-            if sub_matches.get_one::<bool>("serial").is_some() {
+            if sub_matches.get_one::<bool>("serial").is_some_and(|x| *x) {
                 let serial_ports = list_serial_ports().context("Failed to list serial ports.")?;
                 // Let the user choose the port that will be used
                 let port_names: Vec<_> = serial_ports.iter().map(|p| p.port_name.clone()).collect();
@@ -104,7 +104,7 @@ async fn main() -> Result<()> {
             let tab_file = Tab::open(sub_matches.get_one::<String>("tab").unwrap().to_string())
                 .context("Failed to use provided tab file.")?;
             // If "--serial" flag is used, we choose the serial connection
-            if sub_matches.get_one::<bool>("serial").is_some() {
+            if sub_matches.get_one::<bool>("serial").is_some_and(|x| *x) {
                 let serial_ports = list_serial_ports().context("Failed to list serial ports.")?;
                 // Let the user choose the port that will be used
                 let port_names: Vec<_> = serial_ports.iter().map(|p| p.port_name.clone()).collect();
