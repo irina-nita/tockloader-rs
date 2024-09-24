@@ -96,7 +96,6 @@ pub trait BootloaderCommand<R> {
 pub struct PingCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
     pub(crate) sync: bool,
-    pub(crate) response_len: usize,
 }
 
 
@@ -115,7 +114,7 @@ impl<'a> PingCommand<'a> {
             while read_bytes < 2 {
                 read_bytes += self.port.read_buf(&mut ret).await?;
             }
-            if ret[1] == Response::Pong as u8 {
+            if (ret.len() == 2) && ret[1] == Response::Pong as u8 {
                 return Ok(Response::from(ret[1]));
             }
         }
@@ -162,7 +161,7 @@ impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
         message.push(ESCAPE_CHAR);
         message.push(Command::Ping as u8);
 
-        let mut ret = BytesMut::with_capacity(self.response_len + 2);
+        let mut ret = BytesMut::with_capacity(2);
         let mut bytes_written = 0;
 
         while bytes_written != message.len() {
@@ -242,18 +241,6 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
             message.push(*i);
         }
 
-        let mut i = 0;
-        while i < message.len() {
-            if message[i] == ESCAPE_CHAR {
-                // Escaped by replacing all 0xFC with two consecutive 0xFC - tock bootloader readme
-                message.insert(i + 1, ESCAPE_CHAR);
-                // Skip the inserted character
-                i += 2;
-            } else {
-                i += 1;
-            }
-        }
-
         message.push(ESCAPE_CHAR);
         message.push(Command::ReadRange as u8);
 
@@ -290,20 +277,19 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
         let mut new_data: Vec<u8> = Vec::new();
         let mut value = 2;
 
-        if self.response_len != 0 {
-            while bytes_to_read > value {
-                value += self.port.read_buf(&mut new_data).await?;
-            }
-
-            // De-escape and add array of read in the bytes
-            for i in 0..(new_data.len() - 1) {
-                if new_data[i] == ESCAPE_CHAR && new_data[i + 1] == ESCAPE_CHAR {
-                    new_data.remove(i + 1);
-                }
-            }
-
-            ret.extend_from_slice(&new_data);
+        while bytes_to_read > value {
+            value += self.port.read_buf(&mut new_data).await?;
         }
+
+        // De-escape and add array of read in the bytes
+        for i in 0..(new_data.len() - 1) {
+            if new_data[i] == ESCAPE_CHAR && new_data[i + 1] == ESCAPE_CHAR {
+                new_data.remove(i + 1);
+            }
+        }
+
+        ret.extend_from_slice(&new_data);
+    
         dbg!(&ret);
 
         Ok((Response::from(ret[1]), ret[2..].to_vec()))

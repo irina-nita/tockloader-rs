@@ -58,7 +58,6 @@ pub async fn list(
             let mut read_command = PingCommand {
                 port: &mut port,
                 sync: true,
-                response_len: 0,
             };
 
             let response = read_command.issue_command().await?;
@@ -69,7 +68,6 @@ pub async fn list(
                 let mut read_command = PingCommand {
                     port: &mut port,
                     sync: true,
-                    response_len: 0,
                 };
     
                 let _ = read_command.issue_command().await?;
@@ -114,8 +112,7 @@ pub async fn info(
         Connection::Serial(mut port) => {
             let mut ping_command = PingCommand {
                 port: &mut port,
-                sync: true,
-                response_len: 0,
+                sync: false,
             };
 
             let response = ping_command.ping_bootloader_and_wait_for_response().await?;
@@ -125,8 +122,7 @@ pub async fn info(
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 let mut ping_command = PingCommand {
                     port: &mut port,
-                    sync: true,
-                    response_len: 0,
+                    sync: false,
                 };
     
                 let response = ping_command.ping_bootloader_and_wait_for_response().await?;
@@ -328,8 +324,7 @@ pub async fn install_app(
         Connection::Serial(mut port) => {
             let mut read_command = PingCommand {
                 port: &mut port,
-                sync: true,
-                response_len: 0,
+                sync: false,
             };
 
             let response = read_command.issue_command().await?;
@@ -339,8 +334,7 @@ pub async fn install_app(
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 let mut read_command = PingCommand {
                     port: &mut port,
-                    sync: true,
-                    response_len: 0,
+                    sync: false,
                 };
     
                 let _ = read_command.issue_command().await?;
