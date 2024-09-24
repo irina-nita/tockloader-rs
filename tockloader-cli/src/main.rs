@@ -10,7 +10,9 @@ use cli::make_cli;
 use display::{print_info, print_list};
 use inquire::Select;
 use tockloader_lib::{
-    connection::{Connection, ConnectionInfo}, erase_apps, info, install_app, list, list_debug_probes, list_serial_ports, tabs::tab::Tab
+    connection::{Connection, ConnectionInfo},
+    erase_apps, info, install_app, list, list_debug_probes, list_serial_ports,
+    tabs::tab::Tab,
 };
 
 #[tokio::main]

@@ -6,7 +6,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use probe_rs::{Core, MemoryInterface};
 use tokio_serial::SerialStream;
 
-use crate::bootloader_serial::{BootloaderCommand, ReadRangeCommand, Response};
+use crate::{bootloader_serial::{BootloaderCommand, ReadRangeCommand, Response}, errors::TockloaderError};
 
 use super::decode::{bytes_to_string, decode_attribute};
 
@@ -43,12 +43,12 @@ impl SystemAttributes {
     }
 
     // TODO: explain what is happening here
-    pub(crate) fn read_system_attributes_probe(board_core: &mut Core) -> Self {
+    pub(crate) fn read_system_attributes_probe(board_core: &mut Core) -> Result<Self, TockloaderError> {
         let mut result = SystemAttributes::new();
         let address = 0x600;
         let mut buf = [0u8; 64 * 16];
 
-        let _ = board_core.read(address, &mut buf);
+        let _ = board_core.read(address, &mut buf).map_err(TockloaderError::ProbeRsReadError)?;
 
         let mut data = buf.chunks(64);
 
@@ -60,35 +60,37 @@ impl SystemAttributes {
 
             let step_option = decode_attribute(step);
 
-            if step_option.is_none() {
+            if let Some(decoded_attributes) = step_option {
+                match index_data {
+                    0 => {
+                        result.board = Some(decoded_attributes.value.to_string());
+                    }
+                    1 => {
+                        result.arch = Some(decoded_attributes.value.to_string());
+                    }
+                    2 => {
+                        result.appaddr = Some(
+                            u64::from_str_radix(
+                                decoded_attributes
+                                    .value
+                                    .to_string()
+                                    .trim_start_matches("0x"),
+                                16,
+                            )
+                            .map_err(|_| {
+                                TockloaderError::MisconfiguredBoard(
+                                    "Invalid start address.".to_owned(),
+                                )
+                            })?,
+                        );
+                    }
+                    3 => {
+                        result.boothash = Some(decoded_attributes.value.to_string());
+                    }
+                    _ => {},
+                }
+            } else {
                 continue;
-            }
-
-            let decoded_attributes = step_option.unwrap();
-
-            match index_data {
-                0 => {
-                    result.board = Some(decoded_attributes.value.to_string());
-                }
-                1 => {
-                    result.arch = Some(decoded_attributes.value.to_string());
-                }
-                2 => {
-                    result.appaddr = Some(
-                        u64::from_str_radix(
-                            decoded_attributes
-                                .value
-                                .to_string()
-                                .trim_start_matches("0x"),
-                            16,
-                        )
-                        .unwrap(),
-                    );
-                }
-                3 => {
-                    result.boothash = Some(decoded_attributes.value.to_string());
-                }
-                _ => panic!("Board data not found!"),
             }
         }
 
@@ -111,8 +113,10 @@ impl SystemAttributes {
 
         let mut kernel_attr_binary = [0u8; 100];
         board_core
-            .read(result.appaddr.unwrap() - 100, &mut kernel_attr_binary)
-            .unwrap();
+            .read(result.appaddr.ok_or(TockloaderError::MisconfiguredBoard(
+                "No start address found.".to_owned(),
+            ))? - 100, &mut kernel_attr_binary)
+            .map_err(TockloaderError::ProbeRsReadError)?;
 
         let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
         let kernel_version = LittleEndian::read_uint(&kernel_attr_binary[95..96], 1);
@@ -130,11 +134,11 @@ impl SystemAttributes {
         result.kernel_bin_start = Some(kernel_binary_start);
         result.kernel_bin_len = Some(kernel_binary_len);
 
-        result
+        Ok(result)
     }
 
     // TODO: explain what is happening here
-    pub(crate) async fn read_system_attributes_serial(port: &mut SerialStream) -> Self {
+    pub(crate) async fn read_system_attributes_serial(port: &mut SerialStream) -> Result<Self, TockloaderError> {
         let mut result = SystemAttributes::new();
 
         let mut read_command = ReadRangeCommand {
@@ -145,7 +149,7 @@ impl SystemAttributes {
             expected_response: Response::ReadRange,
         };
 
-        let (_, buf) = read_command.issue_command().await.unwrap();
+        let (_, buf) = read_command.issue_command().await?;
 
         let mut data = buf.chunks(64);
 
@@ -157,68 +161,72 @@ impl SystemAttributes {
 
             let step_option = decode_attribute(step);
 
-            if step_option.is_none() {
+            if let Some(decoded_attributes) = step_option {
+                match index_data {
+                    0 => {
+                        result.board = Some(decoded_attributes.value.to_string());
+                    }
+                    1 => {
+                        result.arch = Some(decoded_attributes.value.to_string());
+                    }
+                    2 => {
+                        result.appaddr = Some(
+                            u64::from_str_radix(
+                                decoded_attributes
+                                    .value
+                                    .to_string()
+                                    .trim_start_matches("0x"),
+                                16,
+                            )
+                            .map_err(|_| {
+                                TockloaderError::MisconfiguredBoard(
+                                    "Invalid start address.".to_owned(),
+                                )
+                            })?,
+                        );
+                    }
+                    3 => {
+                        result.boothash = Some(decoded_attributes.value.to_string());
+                    }
+                    _ => panic!("Board data not found!"),
+                }
+            }
+            else {
                 continue;
             }
-
-            let decoded_attributes = step_option.unwrap();
-
-            match index_data {
-                0 => {
-                    result.board = Some(decoded_attributes.value.to_string());
-                }
-                1 => {
-                    result.arch = Some(decoded_attributes.value.to_string());
-                }
-                2 => {
-                    result.appaddr = Some(
-                        u64::from_str_radix(
-                            decoded_attributes
-                                .value
-                                .to_string()
-                                .trim_start_matches("0x"),
-                            16,
-                        )
-                        .unwrap(),
-                    );
-                }
-                3 => {
-                    result.boothash = Some(decoded_attributes.value.to_string());
-                }
-                _ => panic!("Board data not found!"),
-            }
         }
 
-            let mut read_command = ReadRangeCommand {
-                address: 0x40E,
-                length: 8,
-                port,
-                sync: true,
-                expected_response: Response::ReadRange,
-            };
-    
-            let (_, buf) = read_command.issue_command().await.unwrap();
+        let mut read_command = ReadRangeCommand {
+            address: 0x40E,
+            length: 8,
+            port,
+            sync: true,
+            expected_response: Response::ReadRange,
+        };
 
-        let decoder = utf8_decode::Decoder::new(buf.iter().cloned());
+        let (_, buf) = read_command.issue_command().await?;
 
-        let mut string = String::new();
-        for n in decoder {
-            string.push(n.expect("Error decoding bootloader version"));
-        }
+        let string = String::from_utf8(buf).map_err(|_| {
+            TockloaderError::MisconfiguredBoard(
+                "Data may be corrupted. System attribure is not UTF-8.".to_owned(),
+            )
+        })?;
 
         let string = string.trim_matches(char::from(0));
 
         result.bootloader_version = Some(string.to_owned());
 
         let mut read_command = ReadRangeCommand {
-            address: (result.appaddr.unwrap() - 100) as u32,
+            address: (result.appaddr.ok_or(TockloaderError::MisconfiguredBoard(
+                "No start address found.".to_owned(),
+            ))? - 100) as u32,
             length: 100,
             port,
             sync: true,
             expected_response: Response::ReadRange,
         };
 
-        let (_, kernel_attr_binary) = read_command.issue_command().await.unwrap();
+        let (_, kernel_attr_binary) = read_command.issue_command().await?;
 
         let sentinel = bytes_to_string(&kernel_attr_binary[96..100]);
         let kernel_version = LittleEndian::read_uint(&kernel_attr_binary[95..96], 1);
@@ -236,6 +244,6 @@ impl SystemAttributes {
         result.kernel_bin_start = Some(kernel_binary_start);
         result.kernel_bin_len = Some(kernel_binary_len);
 
-        result
+        Ok(result)
     }
 }

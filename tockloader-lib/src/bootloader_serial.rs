@@ -98,9 +98,10 @@ pub struct PingCommand<'a> {
     pub(crate) sync: bool,
 }
 
-
 impl<'a> PingCommand<'a> {
-    pub async fn ping_bootloader_and_wait_for_response(&mut self) -> Result<Response, TockloaderError>{
+    pub async fn ping_bootloader_and_wait_for_response(
+        &mut self,
+    ) -> Result<Response, TockloaderError> {
         let ping_pkt = [ESCAPE_CHAR, Command::Ping as u8];
 
         let mut ret = BytesMut::with_capacity(200);
@@ -119,7 +120,7 @@ impl<'a> PingCommand<'a> {
             }
         }
         Ok(Response::from(ret[1]))
-    } 
+    }
 }
 
 pub struct WritePageCommand<'a> {
@@ -132,7 +133,7 @@ pub struct WritePageCommand<'a> {
 
 pub struct ReadRangeCommand<'a> {
     pub(crate) port: &'a mut SerialStream,
-    pub(crate) length: u16, 
+    pub(crate) length: u16,
     pub(crate) sync: bool,
     pub(crate) expected_response: Response,
     pub(crate) address: u32,
@@ -148,7 +149,7 @@ pub struct ErasePageCommand<'a> {
 impl<'a> BootloaderCommand<Response> for PingCommand<'a> {
     async fn issue_command(&mut self) -> Result<Response, TockloaderError> {
         let mut message = vec![];
-        
+
         if self.sync {
             message.splice(0..0, SYNC_MESSAGE.iter().cloned());
         }
@@ -285,8 +286,8 @@ impl<'a> BootloaderCommand<Response> for ErasePageCommand<'a> {
 
         for i in 0..4 {
             message.push(self.address[i]);
-        } 
-        
+        }
+
         message.push(ESCAPE_CHAR);
         message.push(Command::ErasePage as u8);
 
