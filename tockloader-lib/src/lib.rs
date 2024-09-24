@@ -474,8 +474,6 @@ pub async fn install_app(
                                 valid_pages.push(i);
                             }
 
-                            dbg!(&binary);
-
                             for i in valid_pages {
                                 let mut write_command = WritePageCommand {
                                     address: (new_address as u32 + (i as usize * page_size) as u32),

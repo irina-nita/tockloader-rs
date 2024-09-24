@@ -217,8 +217,6 @@ impl<'a> BootloaderCommand<Response> for WritePageCommand<'a> {
             return Err(TockloaderError::BootloaderError(ret[1]));
         }
 
-        dbg!(Response::from(ret[1]));
-
         Ok(Response::from(ret[1]))
     }
 }
