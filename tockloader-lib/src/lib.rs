@@ -119,10 +119,18 @@ pub async fn info(
             };
 
             let response = ping_command.ping_bootloader_and_wait_for_response().await?;
+            dbg!(response);
 
             if response as u8 != Response::Pong as u8 {
                 tokio::time::sleep(Duration::from_millis(100)).await;
-                let _ = ping_command.ping_bootloader_and_wait_for_response().await?;
+                let mut ping_command = PingCommand {
+                    port: &mut port,
+                    sync: true,
+                    response_len: 0,
+                };
+    
+                let response = ping_command.ping_bootloader_and_wait_for_response().await?;
+                dbg!(response);
             }
 
             let system_attributes =

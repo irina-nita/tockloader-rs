@@ -111,7 +111,10 @@ impl<'a> PingCommand<'a> {
             while bytes_written != ping_pkt.len() {
                 bytes_written += self.port.write_buf(&mut &ping_pkt[bytes_written..]).await?;
             }
-            self.port.read_buf(&mut ret).await?;
+            let mut read_bytes = 0;
+            while read_bytes < 2 {
+                read_bytes += self.port.read_buf(&mut ret).await?;
+            }
             if ret[1] == Response::Pong as u8 {
                 return Ok(Response::from(ret[1]));
             }
@@ -226,12 +229,6 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for WritePageCommand<'a> {
 impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
     async fn issue_command(&mut self) -> Result<(Response, Vec<u8>), TockloaderError> {
         let mut message = vec![];
-        
-        if self.sync {
-            message.push(SYNC_MESSAGE[0]);
-            message.push(SYNC_MESSAGE[1]);
-            message.push(SYNC_MESSAGE[2]);
-        }
 
         let address = self.address.to_be_bytes().to_vec();
         dbg!(&address);
@@ -245,8 +242,26 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
             message.push(*i);
         }
 
+        let mut i = 0;
+        while i < message.len() {
+            if message[i] == ESCAPE_CHAR {
+                // Escaped by replacing all 0xFC with two consecutive 0xFC - tock bootloader readme
+                message.insert(i + 1, ESCAPE_CHAR);
+                // Skip the inserted character
+                i += 2;
+            } else {
+                i += 1;
+            }
+        }
+
         message.push(ESCAPE_CHAR);
         message.push(Command::ReadRange as u8);
+
+        if self.sync {
+            message.insert(0, SYNC_MESSAGE[0]);
+            message.insert(1, SYNC_MESSAGE[1]);
+            message.insert(2, SYNC_MESSAGE[2]);
+        }
 
         let mut bytes_written = 0;
         while bytes_written != message.len() {
@@ -255,37 +270,43 @@ impl<'a> BootloaderCommand<(Response, Vec<u8>)> for ReadRangeCommand<'a> {
 
         dbg!(bytes_written);
 
-        let mut ret = BytesMut::with_capacity(self.response_len + 2);
-        let mut read_bytes = 0;
+        let bytes_to_read = 2 + self.response_len;
+        let mut ret = BytesMut::with_capacity(2);
 
+        // We are waiting for 2 bytes to be read
+        let mut read_bytes = 0;
         while read_bytes < 2 {
             read_bytes += self.port.read_buf(&mut ret).await?;
         }
-        
-        let ret = vec![ret[0], ret[1]];
 
-        dbg!(read_bytes);
-        dbg!(&ret);
+        if ret[0] != ESCAPE_CHAR {
+            return Err(TockloaderError::BootloaderError(ret[0]));
+        }
 
         if ret[1] != self.expected_response as u8 {
             return Err(TockloaderError::BootloaderError(ret[1]));
         }
 
-        dbg!(ret[1]);
-        dbg!(self.expected_response);
+        let mut new_data: Vec<u8> = Vec::new();
+        let mut value = 2;
 
-        let mut response_data = vec![0u8; self.response_len];
-        let mut bytes_read = 0;
+        if self.response_len != 0 {
+            while bytes_to_read > value {
+                value += self.port.read_buf(&mut new_data).await?;
+            }
 
-        while bytes_read < self.response_len - 6{
-            dbg!(bytes_read);
-            bytes_read += self.port.read_buf(&mut response_data).await?;
+            // De-escape and add array of read in the bytes
+            for i in 0..(new_data.len() - 1) {
+                if new_data[i] == ESCAPE_CHAR && new_data[i + 1] == ESCAPE_CHAR {
+                    new_data.remove(i + 1);
+                }
+            }
+
+            ret.extend_from_slice(&new_data);
         }
+        dbg!(&ret);
 
-        dbg!(bytes_read);
-        dbg!(&response_data);
-
-        Ok((Response::from(ret[1]), response_data))
+        Ok((Response::from(ret[1]), ret[2..].to_vec()))
     }
 }
 
