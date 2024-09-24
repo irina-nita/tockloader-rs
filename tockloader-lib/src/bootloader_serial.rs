@@ -185,7 +185,7 @@ impl<'a> BootloaderCommand<Response> for WritePageCommand<'a> {
 
         let address = self.address.to_le_bytes().to_vec();
 
-        for (i, byte) in address.iter().enumerate().take(4)  {
+        for (i, byte) in address.iter().enumerate().take(4) {
             message.insert(i, *byte);
         }
 
