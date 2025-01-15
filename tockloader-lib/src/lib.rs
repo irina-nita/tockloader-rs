@@ -8,6 +8,7 @@ pub mod connection;
 mod errors;
 pub mod tabs;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use attributes::app_attributes::AppAttributes;
@@ -38,7 +39,10 @@ pub async fn list(
     core_index: Option<&usize>,
 ) -> Result<Vec<AppAttributes>, TockloaderError> {
     match choice {
-        Connection::ProbeRS(mut session) => {
+        Connection::ProbeRS(session) => {
+            let session = Arc::clone(&session);
+            let mut session = session.lock();
+
             let mut core = session
                 .core(*core_index.unwrap())
                 .map_err(|e| TockloaderError::CoreAccessError(*core_index.unwrap(), e))?;
@@ -82,7 +86,9 @@ pub async fn info(
     core_index: Option<&usize>,
 ) -> Result<GeneralAttributes, TockloaderError> {
     match choice {
-        Connection::ProbeRS(mut session) => {
+        Connection::ProbeRS(session) => {
+            let session = Arc::clone(&session);
+            let mut session = session.lock();
             let mut core = session
                 .core(*core_index.unwrap())
                 .map_err(|e| TockloaderError::CoreAccessError(*core_index.unwrap(), e))?;
@@ -127,7 +133,9 @@ pub async fn install_app(
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
     match choice {
-        Connection::ProbeRS(mut session) => {
+        Connection::ProbeRS(session) => {
+            let session = Arc::clone(&session);
+            let mut session = session.lock();
             // Get core - if not specified, by default is 0
             let mut core = session
                 .core(*core_index.unwrap())

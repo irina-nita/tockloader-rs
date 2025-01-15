@@ -1,5 +1,6 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
+use parking_lot::FairMutex;
 use probe_rs::{probe::DebugProbeInfo, Permissions, Session};
 use tokio_serial::{FlowControl, Parity, SerialPort, SerialStream, StopBits};
 
@@ -17,7 +18,8 @@ impl From<String> for ConnectionInfo {
 }
 
 pub enum Connection {
-    ProbeRS(Session),
+    // A probe-rs session can be shared between threads.
+    ProbeRS(Arc<FairMutex<Session>>),
     Serial(SerialStream),
 }
 
@@ -50,7 +52,7 @@ impl Connection {
                     .open()
                     .map_err(TockloaderError::ProbeRsInitializationError)?;
                 match probe.attach(chip.unwrap(), Permissions::default()) {
-                    Ok(session) => Ok(Connection::ProbeRS(session)),
+                    Ok(session) => Ok(Connection::ProbeRS(Arc::new(FairMutex::new(session)))),
                     Err(e) => Err(TockloaderError::ProbeRsCommunicationError(e)),
                 }
             }
