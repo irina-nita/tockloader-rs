@@ -5,7 +5,7 @@
 pub mod attributes;
 pub(crate) mod bootloader_serial;
 pub mod connection;
-mod errors;
+pub mod errors;
 pub mod tabs;
 
 use attributes::system_attributes::SystemAttributes;
