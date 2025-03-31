@@ -6,7 +6,7 @@ pub mod attributes;
 pub mod board_settings;
 pub(crate) mod bootloader_serial;
 pub mod connection;
-mod errors;
+pub mod errors;
 pub mod known_boards;
 pub mod tabs;
 
@@ -21,7 +21,7 @@ use bootloader_serial::{ping_bootloader_and_wait_for_response, Response};
 use connection::Connection;
 use probe_rs::flashing::DownloadOptions;
 use probe_rs::probe::DebugProbeInfo;
-use probe_rs::MemoryInterface;
+use probe_rs::{MemoryInterface, Session};
 
 use errors::TockloaderError;
 use tabs::tab::Tab;
@@ -96,151 +96,144 @@ pub async fn info(
     }
 }
 
-pub async fn install_app(
-    connection: &mut Connection,
+pub fn install_app(
+    session: &mut Session,
     settings: &BoardSettings,
     tab_file: Tab,
 ) -> Result<(), TockloaderError> {
-    match connection {
-        Connection::ProbeRS { session, info } => {
-            let mut core = session
-                .core(info.core)
-                .map_err(|e| TockloaderError::CoreAccessError(info.core, e))?;
+    let mut core = session
+        .core(0)
+        .map_err(|e| TockloaderError::CoreAccessError(0, e))?;
 
-            // TODO: extract these informations without bootloader
-            // TODO: extract board name and kernelr version to verify app compatability
+    // TODO: extract these informations without bootloader
+    // TODO: extract board name and kernelr version to verify app compatability
 
-            let mut address = settings.start_address;
+    let mut address = settings.start_address;
 
-            // TODO: double-check/rework this
+    // TODO: double-check/rework this
 
-            // Read a block of 200 8-bit words// Loop to check if there are another apps installed
-            loop {
-                let mut buff = vec![0u8; 200];
-                core.read(address, &mut buff)
-                    .map_err(TockloaderError::ProbeRsReadError)?;
+    // Read a block of 200 8-bit words// Loop to check if there are another apps installed
+    loop {
+        let mut buff = vec![0u8; 200];
+        core.read(address, &mut buff)
+            .map_err(TockloaderError::ProbeRsReadError)?;
 
-                let (_ver, _header_len, whole_len) = match parse_tbf_header_lengths(
-                    &buff[0..8]
-                        .try_into()
-                        .expect("Buffer length must be at least 8 bytes long."),
-                ) {
-                    Ok((ver, header_len, whole_len)) if header_len != 0 => {
-                        (ver, header_len, whole_len)
-                    }
-                    _ => break, // No more apps
-                };
-                address += whole_len as u64;
-            }
-
-            // TODO: extract arch(?)
-            let arch = settings
-                .arch
-                .clone()
-                .ok_or(TockloaderError::MisconfiguredBoard(
-                    "No architecture found.".to_owned(),
-                ))?;
-
-            let mut binary = tab_file.extract_binary(&arch.clone())?;
-            let size = binary.len() as u64;
-
-            // Make sure the app is aligned to a multiple of its size
-            let multiple = address / size;
-
-            let (new_address, _gap_size) = if multiple * size != address {
-                let new_address = ((address + size) / size) * size;
-                let gap_size = new_address - address;
-                (new_address, gap_size)
-            } else {
-                (address, 0)
-            };
-
-            // No more need of core
-            drop(core);
-
-            // Make sure the binary is a multiple of the page size by padding 0xFFs
-            // TODO(Micu Ana): check if the page-size differs
-            // TODO: also use page_size given or known. This works for now
-            let page_size = 512;
-            let needs_padding = binary.len() % page_size != 0;
-
-            if needs_padding {
-                let remaining = page_size - (binary.len() % page_size);
-                dbg!(remaining);
-                for _i in 0..remaining {
-                    binary.push(0xFF);
-                }
-            }
-
-            // Get indices of pages that have valid data to write
-            let mut valid_pages: Vec<u8> = Vec::new();
-            for i in 0..(size as usize / page_size) {
-                for b in binary[(i * page_size)..((i + 1) * page_size)]
-                    .iter()
-                    .copied()
-                {
-                    if b != 0 {
-                        valid_pages.push(i.try_into().unwrap());
-                        break;
-                    }
-                }
-            }
-
-            // If there are no pages valid, all pages would have been removed, so we write them all
-            if valid_pages.is_empty() {
-                for i in 0..(size as usize / page_size) {
-                    valid_pages.push(i.try_into().unwrap());
-                }
-            }
-
-            // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
-            let mut ending_pages: Vec<u8> = Vec::new();
-            for &i in &valid_pages {
-                let mut iter = valid_pages.iter();
-                if !iter.any(|&x| x == (i + 1)) && (i + 1) < (size as usize / page_size) as u8 {
-                    ending_pages.push(i + 1);
-                }
-            }
-
-            for i in ending_pages {
-                valid_pages.push(i);
-            }
-
-            for i in valid_pages {
-                println!("Writing page number {}", i);
-                // Create the packet that we send to the bootloader
-                // First four bytes are the address of the page
-                let mut pkt = Vec::new();
-
-                // Then the bytes that go into the page
-                for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)]
-                    .iter()
-                    .copied()
-                {
-                    pkt.push(b);
-                }
-                let mut loader = session.target().flash_loader();
-
-                loader
-                    .add_data(
-                        (new_address as u32 + (i as usize * page_size) as u32).into(),
-                        &pkt,
-                    )
-                    .map_err(TockloaderError::ProbeRsWriteError)?;
-
-                let mut options = DownloadOptions::default();
-                options.keep_unwritten_bytes = true;
-
-                // Finally, the data can be programmed
-                loader
-                    .commit(session, options)
-                    .map_err(TockloaderError::ProbeRsWriteError)?;
-            }
-
-            Ok(())
-        }
-        Connection::Serial { stream: _, info: _ } => todo!(),
+        let (_ver, _header_len, whole_len) = match parse_tbf_header_lengths(
+            &buff[0..8]
+                .try_into()
+                .expect("Buffer length must be at least 8 bytes long."),
+        ) {
+            Ok((ver, header_len, whole_len)) if header_len != 0 => (ver, header_len, whole_len),
+            _ => break, // No more apps
+        };
+        address += whole_len as u64;
     }
+
+    // TODO: extract arch(?)
+    let arch = settings
+        .arch
+        .clone()
+        .ok_or(TockloaderError::MisconfiguredBoard(
+            "No architecture found.".to_owned(),
+        ))?;
+
+    let mut binary = tab_file.extract_binary(&arch.clone())?;
+    let size = binary.len() as u64;
+
+    // Make sure the app is aligned to a multiple of its size
+    let multiple = address / size;
+
+    let (new_address, _gap_size) = if multiple * size != address {
+        let new_address = ((address + size) / size) * size;
+        let gap_size = new_address - address;
+        (new_address, gap_size)
+    } else {
+        (address, 0)
+    };
+
+    // No more need of core
+    drop(core);
+
+    // Make sure the binary is a multiple of the page size by padding 0xFFs
+    // TODO(Micu Ana): check if the page-size differs
+    // TODO: also use page_size given or known. This works for now
+    let page_size = 512;
+    let needs_padding = binary.len() % page_size != 0;
+
+    if needs_padding {
+        let remaining = page_size - (binary.len() % page_size);
+        dbg!(remaining);
+        for _i in 0..remaining {
+            binary.push(0xFF);
+        }
+    }
+
+    // Get indices of pages that have valid data to write
+    let mut valid_pages: Vec<u8> = Vec::new();
+    for i in 0..(size as usize / page_size) {
+        for b in binary[(i * page_size)..((i + 1) * page_size)]
+            .iter()
+            .copied()
+        {
+            if b != 0 {
+                valid_pages.push(i.try_into().unwrap());
+                break;
+            }
+        }
+    }
+
+    // If there are no pages valid, all pages would have been removed, so we write them all
+    if valid_pages.is_empty() {
+        for i in 0..(size as usize / page_size) {
+            valid_pages.push(i.try_into().unwrap());
+        }
+    }
+
+    // Include a blank page (if exists) after the end of a valid page. There might be a usable 0 on the next page
+    let mut ending_pages: Vec<u8> = Vec::new();
+    for &i in &valid_pages {
+        let mut iter = valid_pages.iter();
+        if !iter.any(|&x| x == (i + 1)) && (i + 1) < (size as usize / page_size) as u8 {
+            ending_pages.push(i + 1);
+        }
+    }
+
+    for i in ending_pages {
+        valid_pages.push(i);
+    }
+
+    for i in valid_pages {
+        println!("Writing page number {}", i);
+        // Create the packet that we send to the bootloader
+        // First four bytes are the address of the page
+        let mut pkt = Vec::new();
+
+        // Then the bytes that go into the page
+        for b in binary[(i as usize * page_size)..((i + 1) as usize * page_size)]
+            .iter()
+            .copied()
+        {
+            pkt.push(b);
+        }
+        let mut loader = session.target().flash_loader();
+
+        loader
+            .add_data(
+                (new_address as u32 + (i as usize * page_size) as u32).into(),
+                &pkt,
+            )
+            .map_err(TockloaderError::ProbeRsWriteError)?;
+
+        let mut options = DownloadOptions::default();
+        options.keep_unwritten_bytes = true;
+
+        // Finally, the data can be programmed
+        loader
+            .commit(session, options)
+            .map_err(TockloaderError::ProbeRsWriteError)?;
+    }
+
+    Ok(())
 }
 
 // pub async fn install_app(

@@ -158,9 +158,9 @@ async fn main() -> Result<()> {
             let mut conn = open_connection(sub_matches)?;
             let settings = get_board_settings(sub_matches);
 
-            tockloader_lib::install_app(&mut conn, &settings, tab_file)
-                .await
-                .context("Failed to install app.")?;
+            // tockloader_lib::install_app(&mut conn, &settings, tab_file)
+            //     .await
+            //     .context("Failed to install app.")?;
         }
         _ => {
             println!("Could not run the provided subcommand.");

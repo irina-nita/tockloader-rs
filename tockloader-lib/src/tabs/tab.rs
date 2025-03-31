@@ -6,6 +6,7 @@ use crate::errors::TockloaderError;
 use crate::tabs::metadata::Metadata;
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 use tar::Archive;
 
 struct TbfFile {
@@ -19,7 +20,7 @@ pub struct Tab {
 }
 
 impl Tab {
-    pub fn open(path: String) -> Result<Self, TockloaderError> {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, TockloaderError> {
         let mut metadata = None;
         let mut tbf_files = Vec::new();
         let file = File::open(path).map_err(TockloaderError::UnusableTab)?;
